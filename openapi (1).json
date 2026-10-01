@@ -3,7 +3,7 @@
   "info": {
     "title": "Excel Generator Connector",
     "description": "Create, edit, format, enhance, validate and analyze Excel workbooks.",
-    "version": "1.0"
+    "version": "1.1"
   },
   "host": "excel-generator-api.onrender.com",
   "basePath": "/",
@@ -21,7 +21,7 @@
       "post": {
         "operationId": "CreateExcel",
         "summary": "Create an Excel workbook",
-        "description": "Builds a professionally formatted workbook (tables, formulas, KPI cards, summaries, charts, conditional formatting, dropdowns, dashboards) from a sheet specification and returns a download link.",
+        "description": "Builds a professionally formatted workbook and returns a download link.\n\nIMPORTANT \u2014 every table block MUST have:\n  - headers: a list of column name strings, e.g. [\"Region\", \"Revenue\"]\n  - rows: a list of rows, each a list of cell values as strings, e.g. [[\"North\", \"1200\"], [\"South\", \"950\"]]\n\nA table block with only {\"type\":\"table\"} or {\"type\":\"table\",\"name\":\"x\"} will always fail.\n\nMINIMAL WORKING EXAMPLE:\n{\"sheets\":[{\"name\":\"Sales\",\"blocks\":[{\"type\":\"title\",\"text\":\"Sales Report\"},{\"type\":\"table\",\"name\":\"Sales\",\"headers\":[\"Region\",\"Revenue\",\"Units\"],\"rows\":[[\"North\",\"1200\",\"80\"],[\"South\",\"950\",\"60\"]],\"columns\":[{\"header\":\"Revenue\",\"format\":\"currency0\",\"total\":\"sum\"}],\"totalRow\":true},{\"type\":\"chart\",\"chartType\":\"column\",\"title\":\"Revenue\",\"data\":{\"table\":\"Sales\",\"categories\":\"Region\",\"series\":[\"Revenue\"]}}]}]}",
         "consumes": [
           "application/json"
         ],
@@ -35,42 +35,37 @@
             "required": true,
             "schema": {
               "type": "object",
-              "required": [
-                "sheets"
-              ],
               "properties": {
                 "fileName": {
                   "type": "string",
-                  "x-ms-summary": "File name",
-                  "description": "Name for the workbook, without extension"
+                  "description": "Name for the workbook, without extension",
+                  "x-ms-summary": "File name"
                 },
                 "theme": {
                   "type": "string",
-                  "x-ms-summary": "Theme",
-                  "description": "vkollab (default blue), slate, green or orange",
-                  "default": "vkollab"
+                  "description": "vkollab (blue, default), slate, green or orange",
+                  "x-ms-summary": "Theme"
                 },
                 "currency": {
                   "type": "string",
-                  "x-ms-summary": "Currency",
-                  "description": "USD, INR, EUR, GBP, JPY, AUD or CAD. Used by 'currency' number formats.",
-                  "default": "USD"
+                  "description": "USD, INR, EUR, GBP, JPY, AUD or CAD (used by currency formats)",
+                  "x-ms-summary": "Currency"
                 },
                 "sheets": {
                   "type": "array",
-                  "x-ms-summary": "Sheets",
+                  "description": "List of sheet objects. EACH SHEET has: name (required) and blocks (list of block objects). EACH TABLE BLOCK needs: type='table', name (string), headers (list of column name strings), rows (list of rows; each row is a list of values as strings). Numbers like 1200 can be sent as the string '1200' and will be converted. Dates should be 'yyyy-mm-dd'. Formulas start with '='. DO NOT send a table block without headers and rows \u2014 it will always fail. Other block types: title (needs text), kpis (needs items), chart (needs chartType and data), text (needs text or lines), spacer (needs count).",
                   "items": {
-                    "type": "object"
-                  },
-                  "description": "List of sheet objects. Each: {name, blocks:[...]} where blocks are title, kpis, table, summary, chart, text, spacer. Shorthand per sheet also works: {name, title, subtitle, kpis, headers, rows, columns, totalRow, summaries, charts, notes}. Formulas are strings starting with '='; use [@Column] for same-row cells and Table[Column] for a whole column. Call GetExcelCapabilities for the full list."
+                    "$ref": "#/definitions/Sheet"
+                  }
                 },
                 "returnBase64": {
                   "type": "boolean",
-                  "x-ms-summary": "Return file content",
-                  "description": "Also return the file as base64 (files up to 4 MB)",
-                  "default": false
+                  "description": "Also return the file as base64 (files up to 4 MB)"
                 }
-              }
+              },
+              "required": [
+                "sheets"
+              ]
             }
           }
         ],
@@ -90,55 +85,59 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
@@ -158,61 +157,65 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
           },
           "422": {
-            "description": "The request could not be applied; read 'message'",
+            "description": "Request could not be applied; read the message",
             "schema": {
               "type": "object",
               "properties": {
@@ -226,55 +229,59 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
@@ -286,7 +293,7 @@
       "post": {
         "operationId": "EditExcel",
         "summary": "Edit, clean, format or enhance an Excel workbook",
-        "description": "Opens an existing workbook (or CSV) and applies a list of operations: formatting, cleaning, sorting, formulas, charts, validation, dashboards, sheet management. The original file is never changed; a new file is returned.",
+        "description": "Opens an existing workbook (or CSV) and applies a list of operations. The original is never changed; a new file is returned.",
         "consumes": [
           "application/json"
         ],
@@ -300,64 +307,57 @@
             "required": true,
             "schema": {
               "type": "object",
-              "required": [
-                "source",
-                "operations"
-              ],
               "properties": {
                 "source": {
                   "type": "object",
-                  "title": "Source workbook",
-                  "description": "The existing file. Provide fileBase64 (base64 text of the .xlsx/.xlsm/.csv) OR fileUrl (a public direct-download link; private SharePoint/OneDrive links do not work).",
                   "properties": {
                     "fileBase64": {
                       "type": "string",
-                      "description": "Base64 content of the workbook"
+                      "description": "Base64 text of the .xlsx / .xlsm / .csv file"
                     },
                     "fileUrl": {
                       "type": "string",
-                      "description": "Public direct-download URL"
+                      "description": "Public direct-download link (private SharePoint/OneDrive links do not work)"
                     },
                     "fileName": {
                       "type": "string",
-                      "description": "Original file name incl. extension, e.g. budget.xlsx"
+                      "description": "Original file name including extension, e.g. budget.xlsx"
                     }
-                  }
+                  },
+                  "description": "The existing workbook. Give fileBase64 or fileUrl."
                 },
                 "operations": {
                   "type": "array",
-                  "x-ms-summary": "Operations",
+                  "description": "Ordered list of edits (max 80). Each needs op and usually sheet. Examples: {\"op\":\"enhance_sheet\",\"sheet\":\"Orders\"}; {\"op\":\"clean_data\",\"sheet\":\"Orders\",\"actions\":[\"trim\",\"text_to_numbers\",\"remove_blank_rows\",\"dedupe\"]}; {\"op\":\"add_formula_column\",\"sheet\":\"Orders\",\"header\":\"Margin\",\"formula\":\"=[@Profit]/[@Revenue]\",\"format\":\"percent\"}; {\"op\":\"conditional_format\",\"sheet\":\"Orders\",\"column\":\"Status\",\"rule\":{\"type\":\"status\",\"map\":{\"Done\":\"green\",\"Late\":\"red\"}}}; {\"op\":\"auto_dashboard\",\"sheet\":\"Orders\"}",
                   "items": {
-                    "type": "object"
-                  },
-                  "description": "Ordered list of {op, sheet, ...} objects (max 80). Examples: {op:'enhance_sheet',sheet:'Orders'}, {op:'clean_data',sheet:'Orders',actions:['trim','text_to_numbers','text_to_dates','remove_blank_rows','dedupe']}, {op:'add_formula_column',sheet:'Orders',header:'Margin',formula:'=[@Profit]/[@Revenue]',format:'percent'}, {op:'conditional_format',sheet:'Orders',column:'Status',rule:{type:'status',map:{Done:'green',Late:'red'}}}, {op:'validate_data',sheet:'Orders',rules:[{column:'Email',type:'email',required:true}]}, {op:'auto_dashboard',sheet:'Orders'}. Call GetExcelCapabilities for all operations."
+                    "$ref": "#/definitions/Operation"
+                  }
                 },
                 "fileName": {
                   "type": "string",
-                  "x-ms-summary": "Output file name"
+                  "description": "Output file name without extension"
                 },
                 "theme": {
                   "type": "string",
-                  "x-ms-summary": "Theme",
-                  "default": "vkollab"
+                  "description": "vkollab, slate, green or orange"
                 },
                 "currency": {
                   "type": "string",
-                  "x-ms-summary": "Currency",
-                  "default": "USD"
+                  "description": "USD, INR, EUR ..."
                 },
                 "continueOnError": {
                   "type": "boolean",
-                  "x-ms-summary": "Continue on error",
-                  "description": "Skip failing operations instead of stopping",
-                  "default": false
+                  "description": "Skip failing operations instead of stopping"
                 },
                 "returnBase64": {
                   "type": "boolean",
-                  "x-ms-summary": "Return file content",
-                  "default": false
+                  "description": "Also return the file as base64"
                 }
-              }
+              },
+              "required": [
+                "source",
+                "operations"
+              ]
             }
           }
         ],
@@ -377,55 +377,59 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
@@ -445,61 +449,65 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
           },
           "422": {
-            "description": "The request could not be applied; read 'message'",
+            "description": "Request could not be applied; read the message",
             "schema": {
               "type": "object",
               "properties": {
@@ -513,55 +521,59 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
@@ -573,7 +585,7 @@
       "post": {
         "operationId": "AnalyzeExcel",
         "summary": "Inspect and validate an Excel workbook",
-        "description": "Reads a workbook without changing it: structure, detected data range, column profile, formula errors, data-quality problems, health score, suggestions and features that editing could lose. Always call this before editing a file you have not seen.",
+        "description": "Reads a workbook without changing it: structure, detected data range, formula errors, data-quality problems, health score, suggestions and features that editing could lose. Call this before editing a file you have not seen.",
         "consumes": [
           "application/json"
         ],
@@ -587,30 +599,29 @@
             "required": true,
             "schema": {
               "type": "object",
-              "required": [
-                "source"
-              ],
               "properties": {
                 "source": {
                   "type": "object",
-                  "title": "Source workbook",
-                  "description": "The existing file. Provide fileBase64 (base64 text of the .xlsx/.xlsm/.csv) OR fileUrl (a public direct-download link; private SharePoint/OneDrive links do not work).",
                   "properties": {
                     "fileBase64": {
                       "type": "string",
-                      "description": "Base64 content of the workbook"
+                      "description": "Base64 text of the .xlsx / .xlsm / .csv file"
                     },
                     "fileUrl": {
                       "type": "string",
-                      "description": "Public direct-download URL"
+                      "description": "Public direct-download link (private SharePoint/OneDrive links do not work)"
                     },
                     "fileName": {
                       "type": "string",
-                      "description": "Original file name incl. extension, e.g. budget.xlsx"
+                      "description": "Original file name including extension, e.g. budget.xlsx"
                     }
-                  }
+                  },
+                  "description": "The existing workbook. Give fileBase64 or fileUrl."
                 }
-              }
+              },
+              "required": [
+                "source"
+              ]
             }
           }
         ],
@@ -621,10 +632,12 @@
               "type": "object",
               "properties": {
                 "status": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "success or error"
                 },
                 "fileName": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "File name"
                 },
                 "healthScore": {
                   "type": "integer",
@@ -636,42 +649,47 @@
                 },
                 "issues": {
                   "type": "array",
+                  "description": "Problems found: severity, sheet, location, type, message",
                   "items": {
                     "type": "object"
-                  },
-                  "description": "Problems found: severity, sheet, location, type, message"
+                  }
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Per-sheet structure, detected data range, column profile and sample rows",
                   "items": {
                     "type": "object"
-                  },
-                  "description": "Per-sheet structure, detected data range, column profile and sample rows"
+                  }
                 },
                 "suggestions": {
                   "type": "array",
+                  "description": "Improvement ideas",
                   "items": {
                     "type": "string"
                   }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features that editing this file would lose",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features that editing this file would lose"
+                  }
                 },
                 "formulasVerified": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "Whether formulas were calculated on the server"
                 },
                 "totalFormulas": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Formula count"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 }
               }
             }
@@ -691,61 +709,65 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
           },
           "422": {
-            "description": "The request could not be applied; read 'message'",
+            "description": "Request could not be applied; read the message",
             "schema": {
               "type": "object",
               "properties": {
@@ -759,55 +781,59 @@
                 },
                 "downloadUrl": {
                   "type": "string",
-                  "description": "Link the user can click to download the workbook. Always share this link."
+                  "description": "Link the user clicks to download the workbook. Always share this link."
                 },
                 "sheetCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Number of sheets"
                 },
                 "sheets": {
                   "type": "array",
+                  "description": "Sheet names in the result",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Sheet names in the result"
+                  }
                 },
                 "changes": {
                   "type": "array",
+                  "description": "Plain-language log of what was done",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Plain-language log of what was done"
+                  }
                 },
                 "warnings": {
                   "type": "array",
+                  "description": "Things the user should know. Always mention these.",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Things the user should know. Always mention these."
+                  }
                 },
                 "preservationWarnings": {
                   "type": "array",
+                  "description": "Features of the original file that could not be kept",
                   "items": {
                     "type": "string"
-                  },
-                  "description": "Features of the original file that could not be kept"
+                  }
                 },
                 "formulasVerified": {
                   "type": "boolean",
-                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                  "description": "True only if formula results were checked on the server; if false Excel calculates them on open"
                 },
                 "report": {
                   "type": "object",
                   "description": "Validation results when validate_data was used"
                 },
                 "sourceFormat": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Format of the input"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error code"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Error message"
                 }
               }
             }
@@ -819,7 +845,7 @@
       "get": {
         "operationId": "GetExcelCapabilities",
         "summary": "List Excel features and operations",
-        "description": "Returns every operation, block, chart type, conditional-format type and number format the Excel tools support.",
+        "description": "Returns every operation, block, chart type, conditional-format type and number format.",
         "produces": [
           "application/json"
         ],
@@ -835,12 +861,14 @@
                 },
                 "chartTypes": {
                   "type": "array",
+                  "description": "Chart types",
                   "items": {
                     "type": "string"
                   }
                 },
                 "blocks": {
                   "type": "array",
+                  "description": "Block types",
                   "items": {
                     "type": "string"
                   }
@@ -850,6 +878,1304 @@
           }
         }
       }
+    }
+  },
+  "definitions": {
+    "Kpi": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Card title, e.g. Total revenue"
+        },
+        "value": {
+          "type": "string",
+          "description": "A number as text, or a formula such as =SUM(Sales[Revenue]) (Table[Column] refers to a named table)"
+        },
+        "format": {
+          "type": "string",
+          "description": "currency, currency0, integer, number, percent, percent0, date, thousands, millions"
+        },
+        "note": {
+          "type": "string",
+          "description": "Small caption under the value"
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex colour like 16A34A"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ]
+    },
+    "Validation": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "list, whole, decimal, date, textLength or custom",
+          "enum": [
+            "list",
+            "whole",
+            "decimal",
+            "date",
+            "textLength",
+            "custom"
+          ]
+        },
+        "values": {
+          "type": "array",
+          "description": "Allowed values for a list dropdown",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "type": "string",
+          "description": "Cell range for a list, e.g. =Lists!$A$1:$A$9"
+        },
+        "min": {
+          "type": "string",
+          "description": "Minimum (number or yyyy-mm-dd date)"
+        },
+        "max": {
+          "type": "string",
+          "description": "Maximum"
+        },
+        "operator": {
+          "type": "string",
+          "description": "between, greaterThan, lessThan, equal ..."
+        },
+        "formula": {
+          "type": "string",
+          "description": "Formula for type custom"
+        },
+        "error": {
+          "type": "string",
+          "description": "Message shown when the entry is rejected"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Hint shown when the cell is selected"
+        }
+      },
+      "description": "Cell rule applied to the whole column"
+    },
+    "ConditionalFormat": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "colorScale, dataBar, iconSet, cell, text, formula, topN, bottomN, duplicates, blanks or status",
+          "enum": [
+            "colorScale",
+            "dataBar",
+            "iconSet",
+            "cell",
+            "text",
+            "formula",
+            "topN",
+            "bottomN",
+            "duplicates",
+            "blanks",
+            "status"
+          ]
+        },
+        "palette": {
+          "type": "string",
+          "description": "For colorScale: rag (red-yellow-green), gyr, blue or green"
+        },
+        "color": {
+          "type": "string",
+          "description": "green, red, amber, blue, grey, orange or a hex colour"
+        },
+        "operator": {
+          "type": "string",
+          "description": "For cell: greaterThan, lessThan, between, equal, notEqual ..."
+        },
+        "value": {
+          "type": "string",
+          "description": "Comparison value for type cell"
+        },
+        "values": {
+          "type": "array",
+          "description": "Two values for operator between",
+          "items": {
+            "type": "string"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to look for (type text)"
+        },
+        "formula": {
+          "type": "string",
+          "description": "Formula for type formula"
+        },
+        "n": {
+          "type": "integer",
+          "description": "How many items for topN / bottomN"
+        },
+        "icons": {
+          "type": "string",
+          "description": "For iconSet: 3Arrows, 3TrafficLights1, 3Symbols ..."
+        },
+        "map": {
+          "type": "object",
+          "description": "For status: word to colour, e.g. {\"Done\":\"green\",\"Late\":\"red\"}",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "bold": {
+          "type": "boolean",
+          "description": "Bold text for matching cells"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "string",
+          "description": "Exact header text this setting applies to"
+        },
+        "format": {
+          "type": "string",
+          "description": "currency, currency0, integer, number, percent, percent0, date, datetime, month, text, thousands, millions"
+        },
+        "width": {
+          "type": "number",
+          "description": "Column width"
+        },
+        "align": {
+          "type": "string",
+          "description": "left, center or right"
+        },
+        "wrap": {
+          "type": "boolean",
+          "description": "Wrap long text"
+        },
+        "formula": {
+          "type": "string",
+          "description": "Formula filled down the column, e.g. =[@Units]*[@Price] ([@Name] = same row, column named Name)"
+        },
+        "total": {
+          "type": "string",
+          "description": "Total row aggregate: sum, avg, count, min or max"
+        },
+        "validation": {
+          "$ref": "#/definitions/Validation"
+        },
+        "cf": {
+          "type": "array",
+          "description": "Conditional formatting rules for this column",
+          "items": {
+            "$ref": "#/definitions/ConditionalFormat"
+          }
+        }
+      },
+      "required": [
+        "header"
+      ]
+    },
+    "SummaryValue": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": "string",
+          "description": "Source column header (not needed for count)"
+        },
+        "agg": {
+          "type": "string",
+          "description": "sum, count, avg, min or max"
+        },
+        "label": {
+          "type": "string",
+          "description": "Output column title"
+        },
+        "format": {
+          "type": "string",
+          "description": "Number format"
+        }
+      }
+    },
+    "ChartData": {
+      "type": "object",
+      "properties": {
+        "table": {
+          "type": "string",
+          "description": "Name of the table (or summary) that holds the data"
+        },
+        "categories": {
+          "type": "string",
+          "description": "Header of the label column (x-axis)"
+        },
+        "series": {
+          "type": "array",
+          "description": "Headers of the numeric columns to plot",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Where the chart gets its data"
+    },
+    "Block": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "What to draw. table needs headers + rows. chart needs chartType + data. kpis needs items. title needs text.",
+          "enum": [
+            "title",
+            "text",
+            "kpis",
+            "table",
+            "summary",
+            "chart",
+            "spacer"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "Table/summary name used by charts and formulas (letters, digits, underscore)"
+        },
+        "text": {
+          "type": "string",
+          "description": "Title text (type title) or paragraph (type text)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Heading above a table/summary/chart"
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Subtitle under a title banner"
+        },
+        "lines": {
+          "type": "array",
+          "description": "Lines of text for type text",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": {
+          "type": "string",
+          "description": "For text: normal, heading, note or bullets"
+        },
+        "items": {
+          "type": "array",
+          "description": "KPI cards (type kpis)",
+          "items": {
+            "$ref": "#/definitions/Kpi"
+          }
+        },
+        "headers": {
+          "type": "array",
+          "description": "Table column names, e.g. [\"Region\",\"Revenue\"] (type table)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "description": "Table data rows: a list of rows, each a list of values as text. Numbers like 1200 are converted; dates as yyyy-mm-dd; formulas start with =",
+          "items": {
+            "type": "array",
+            "description": "One row of cell values, same order as headers",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "description": "Optional per-column settings (format, formula, total, validation, conditional formats)",
+          "items": {
+            "$ref": "#/definitions/Column"
+          }
+        },
+        "totalRow": {
+          "type": "boolean",
+          "description": "Add a totals row (use with columns[].total)"
+        },
+        "excelTable": {
+          "type": "boolean",
+          "description": "Make it a real Excel Table with filters"
+        },
+        "freezeHeader": {
+          "type": "boolean",
+          "description": "Freeze the header row"
+        },
+        "banding": {
+          "type": "boolean",
+          "description": "Alternate row shading (default true)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Summary: name of the source table"
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Summary: header of the column to group by"
+        },
+        "values": {
+          "type": "array",
+          "description": "Summary: what to calculate per group",
+          "items": {
+            "$ref": "#/definitions/SummaryValue"
+          }
+        },
+        "percentOfTotal": {
+          "type": "boolean",
+          "description": "Summary: add a % of total column"
+        },
+        "sort": {
+          "type": "string",
+          "description": "Summary: desc or asc"
+        },
+        "top": {
+          "type": "integer",
+          "description": "Summary: keep only the top N groups"
+        },
+        "chartType": {
+          "type": "string",
+          "description": "column, bar, stackedColumn, stackedBar, percentStacked, line, area, pie, doughnut, scatter or combo",
+          "enum": [
+            "column",
+            "bar",
+            "stackedColumn",
+            "stackedBar",
+            "percentStacked",
+            "line",
+            "area",
+            "pie",
+            "doughnut",
+            "scatter",
+            "combo"
+          ]
+        },
+        "data": {
+          "$ref": "#/definitions/ChartData"
+        },
+        "place": {
+          "type": "string",
+          "description": "Chart position: below (default), right, or a cell like H5"
+        },
+        "width": {
+          "type": "number",
+          "description": "Chart width in cm"
+        },
+        "height": {
+          "type": "number",
+          "description": "Chart height in cm"
+        },
+        "dataLabels": {
+          "type": "boolean",
+          "description": "Show values on the chart"
+        },
+        "legend": {
+          "type": "string",
+          "description": "bottom, right, top, left"
+        },
+        "xTitle": {
+          "type": "string",
+          "description": "X axis title"
+        },
+        "yTitle": {
+          "type": "string",
+          "description": "Y axis title"
+        },
+        "lineSeries": {
+          "type": "array",
+          "description": "For combo charts: series to draw as lines",
+          "items": {
+            "type": "string"
+          }
+        },
+        "count": {
+          "type": "integer",
+          "description": "Blank rows for type spacer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "x-ms-examples": {
+        "Table block": {
+          "type": "table",
+          "name": "Sales",
+          "title": "Monthly Sales",
+          "headers": [
+            "Region",
+            "Revenue",
+            "Units"
+          ],
+          "rows": [
+            [
+              "North",
+              "1200",
+              "80"
+            ],
+            [
+              "South",
+              "950",
+              "60"
+            ],
+            [
+              "East",
+              "1540",
+              "110"
+            ]
+          ],
+          "columns": [
+            {
+              "header": "Revenue",
+              "format": "currency0",
+              "total": "sum"
+            },
+            {
+              "header": "Units",
+              "total": "sum"
+            }
+          ],
+          "totalRow": true
+        },
+        "KPI block": {
+          "type": "kpis",
+          "items": [
+            {
+              "label": "Total Revenue",
+              "value": "=SUM(Sales[Revenue])",
+              "format": "currency0"
+            }
+          ]
+        },
+        "Chart block": {
+          "type": "chart",
+          "chartType": "column",
+          "title": "Revenue by Region",
+          "data": {
+            "table": "Sales",
+            "categories": "Region",
+            "series": [
+              "Revenue"
+            ]
+          },
+          "place": "right"
+        },
+        "Title block": {
+          "type": "title",
+          "text": "Monthly Report",
+          "subtitle": "October 2026"
+        },
+        "Text block": {
+          "type": "text",
+          "text": "All amounts in INR. Totals calculated automatically."
+        },
+        "Spacer": {
+          "type": "spacer",
+          "count": 2
+        }
+      }
+    },
+    "Sheet": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Sheet tab name (max 31 characters)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Banner title shown at the top of the sheet"
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Banner subtitle"
+        },
+        "tabColor": {
+          "type": "string",
+          "description": "Hex colour for the tab"
+        },
+        "blocks": {
+          "type": "array",
+          "description": "Content in order, top to bottom. Use this for full control.",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        },
+        "kpis": {
+          "type": "array",
+          "description": "Shorthand: KPI cards shown under the banner",
+          "items": {
+            "$ref": "#/definitions/Kpi"
+          }
+        },
+        "headers": {
+          "type": "array",
+          "description": "Shorthand: column names of the sheet's main table",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "description": "Shorthand: data rows of the main table",
+          "items": {
+            "type": "array",
+            "description": "One row of cell values, same order as headers",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "description": "Shorthand: per-column settings of the main table",
+          "items": {
+            "$ref": "#/definitions/Column"
+          }
+        },
+        "tableName": {
+          "type": "string",
+          "description": "Shorthand: name of the main table (default Data)"
+        },
+        "totalRow": {
+          "type": "boolean",
+          "description": "Shorthand: add a totals row"
+        },
+        "summaries": {
+          "type": "array",
+          "description": "Shorthand: summary blocks",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        },
+        "charts": {
+          "type": "array",
+          "description": "Shorthand: chart blocks (use chartType)",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "description": "Shorthand: footnotes",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-ms-examples": {
+        "Expense sheet": {
+          "name": "Expenses",
+          "title": "October Expenses",
+          "subtitle": "Team spend tracker",
+          "blocks": [
+            {
+              "type": "title",
+              "text": "October Expenses",
+              "subtitle": "Team spend tracker"
+            },
+            {
+              "type": "kpis",
+              "items": [
+                {
+                  "label": "Total Spend",
+                  "value": "=SUM(Expenses[Amount])",
+                  "format": "currency0"
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "name": "Expenses",
+              "headers": [
+                "Date",
+                "Category",
+                "Description",
+                "Amount",
+                "Status"
+              ],
+              "rows": [
+                [
+                  "2026-10-02",
+                  "Travel",
+                  "Cab to office",
+                  "850",
+                  "Approved"
+                ],
+                [
+                  "2026-10-05",
+                  "Software",
+                  "Design tool licence",
+                  "12000",
+                  "Pending"
+                ],
+                [
+                  "2026-10-09",
+                  "Meals",
+                  "Team lunch",
+                  "3500",
+                  "Approved"
+                ]
+              ],
+              "columns": [
+                {
+                  "header": "Amount",
+                  "format": "currency0",
+                  "total": "sum",
+                  "cf": [
+                    {
+                      "type": "dataBar"
+                    }
+                  ]
+                },
+                {
+                  "header": "Status",
+                  "validation": {
+                    "type": "list",
+                    "values": [
+                      "Approved",
+                      "Pending",
+                      "Rejected"
+                    ]
+                  },
+                  "cf": [
+                    {
+                      "type": "status",
+                      "map": {
+                        "Approved": "green",
+                        "Pending": "amber",
+                        "Rejected": "red"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "totalRow": true
+            },
+            {
+              "type": "chart",
+              "chartType": "column",
+              "title": "Spend by Category",
+              "data": {
+                "table": "Expenses",
+                "categories": "Category",
+                "series": [
+                  "Amount"
+                ]
+              },
+              "place": "right"
+            }
+          ]
+        }
+      }
+    },
+    "Rule": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "list, whole, decimal, date, textLength or custom",
+          "enum": [
+            "list",
+            "whole",
+            "decimal",
+            "date",
+            "textLength",
+            "custom"
+          ]
+        },
+        "palette": {
+          "type": "string",
+          "description": "For colorScale: rag (red-yellow-green), gyr, blue or green"
+        },
+        "color": {
+          "type": "string",
+          "description": "green, red, amber, blue, grey, orange or a hex colour"
+        },
+        "operator": {
+          "type": "string",
+          "description": "between, greaterThan, lessThan, equal ..."
+        },
+        "value": {
+          "type": "string",
+          "description": "Comparison value for type cell"
+        },
+        "values": {
+          "type": "array",
+          "description": "Allowed values for a list dropdown",
+          "items": {
+            "type": "string"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to look for (type text)"
+        },
+        "formula": {
+          "type": "string",
+          "description": "Formula for type custom"
+        },
+        "n": {
+          "type": "integer",
+          "description": "How many items for topN / bottomN"
+        },
+        "icons": {
+          "type": "string",
+          "description": "For iconSet: 3Arrows, 3TrafficLights1, 3Symbols ..."
+        },
+        "map": {
+          "type": "object",
+          "description": "For status: word to colour, e.g. {\"Done\":\"green\",\"Late\":\"red\"}",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "bold": {
+          "type": "boolean",
+          "description": "Bold text for matching cells"
+        },
+        "source": {
+          "type": "string",
+          "description": "Cell range for a list, e.g. =Lists!$A$1:$A$9"
+        },
+        "min": {
+          "type": "string",
+          "description": "Minimum (number or yyyy-mm-dd date)"
+        },
+        "max": {
+          "type": "string",
+          "description": "Maximum"
+        },
+        "error": {
+          "type": "string",
+          "description": "Message shown when the entry is rejected"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Hint shown when the cell is selected"
+        }
+      },
+      "description": "Rule settings: conditional format fields or validation fields, depending on the operation"
+    },
+    "ValidationRule": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": "string",
+          "description": "Header of the column to check"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Must not be blank"
+        },
+        "unique": {
+          "type": "boolean",
+          "description": "No duplicates allowed"
+        },
+        "type": {
+          "type": "string",
+          "description": "number, integer, date, text, email or url"
+        },
+        "min": {
+          "type": "string",
+          "description": "Minimum value or date"
+        },
+        "max": {
+          "type": "string",
+          "description": "Maximum value or date"
+        },
+        "allowed": {
+          "type": "array",
+          "description": "Allowed values",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regex": {
+          "type": "string",
+          "description": "Pattern the whole value must match"
+        },
+        "maxLength": {
+          "type": "integer",
+          "description": "Maximum text length"
+        }
+      },
+      "required": [
+        "column"
+      ]
+    },
+    "SortKey": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": "string",
+          "description": "Header to sort by"
+        },
+        "order": {
+          "type": "string",
+          "description": "asc or desc"
+        }
+      },
+      "required": [
+        "column"
+      ]
+    },
+    "EnhanceOptions": {
+      "type": "object",
+      "properties": {
+        "fixTypes": {
+          "type": "boolean",
+          "description": "Convert text numbers/dates to real ones"
+        },
+        "header": {
+          "type": "boolean",
+          "description": "Style the header row"
+        },
+        "numberFormats": {
+          "type": "boolean",
+          "description": "Apply number formats"
+        },
+        "banding": {
+          "type": "boolean",
+          "description": "Alternate row shading"
+        },
+        "borders": {
+          "type": "boolean",
+          "description": "Light row borders"
+        },
+        "widths": {
+          "type": "boolean",
+          "description": "Fit column widths"
+        },
+        "freeze": {
+          "type": "boolean",
+          "description": "Freeze the header"
+        },
+        "filter": {
+          "type": "boolean",
+          "description": "Add filter buttons"
+        },
+        "hideGridlines": {
+          "type": "boolean",
+          "description": "Hide gridlines"
+        }
+      }
+    },
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "type": "string",
+          "description": "Operation name. add_blocks, add_chart, add_comment, add_filter, add_formula_column, add_hyperlink, add_sheet, add_totals_row, auto_dashboard, autofit_columns, clean_data, clear_range, conditional_format, copy_sheet, data_validation, delete_columns, delete_rows, delete_sheet, document_properties, enhance_sheet, find_replace, format_range, freeze_panes, insert_columns, insert_rows, merge_cells, move_sheet, named_range, page_setup, protect_sheet, rename_sheet, set_cells, set_column_width, set_row_height, sheet_properties, sort_range, unmerge_cells, validate_data",
+          "enum": [
+            "add_blocks",
+            "add_chart",
+            "add_comment",
+            "add_filter",
+            "add_formula_column",
+            "add_hyperlink",
+            "add_sheet",
+            "add_totals_row",
+            "auto_dashboard",
+            "autofit_columns",
+            "clean_data",
+            "clear_range",
+            "conditional_format",
+            "copy_sheet",
+            "data_validation",
+            "delete_columns",
+            "delete_rows",
+            "delete_sheet",
+            "document_properties",
+            "enhance_sheet",
+            "find_replace",
+            "format_range",
+            "freeze_panes",
+            "insert_columns",
+            "insert_rows",
+            "merge_cells",
+            "move_sheet",
+            "named_range",
+            "page_setup",
+            "protect_sheet",
+            "rename_sheet",
+            "set_cells",
+            "set_column_width",
+            "set_row_height",
+            "sheet_properties",
+            "sort_range",
+            "unmerge_cells",
+            "validate_data"
+          ]
+        },
+        "sheet": {
+          "type": "string",
+          "description": "Sheet name, exactly as in the file"
+        },
+        "range": {
+          "type": "string",
+          "description": "Cell range such as A1:F40 (optional: the main data table is detected automatically)"
+        },
+        "hasHeader": {
+          "type": "boolean",
+          "description": "Whether the range starts with a header row (default true)"
+        },
+        "table": {
+          "type": "string",
+          "description": "Name of a table created earlier"
+        },
+        "column": {
+          "type": "string",
+          "description": "A column header (conditional_format / data_validation on one column)"
+        },
+        "columns": {
+          "type": "array",
+          "description": "Column headers to limit clean_data to",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cells": {
+          "type": "object",
+          "description": "set_cells: cell address to value, e.g. {\"A1\":\"Title\",\"B2\":\"=SUM(C2:C9)\"}",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "at": {
+          "type": "string",
+          "description": "Start cell (set_cells with values, add_blocks) or row number / column letter (insert/delete)"
+        },
+        "count": {
+          "type": "integer",
+          "description": "How many rows/columns"
+        },
+        "values": {
+          "type": "array",
+          "description": "set_cells: grid of values starting at 'at'",
+          "items": {
+            "type": "array",
+            "description": "One row of cell values, same order as headers",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "what": {
+          "type": "string",
+          "description": "clear_range: contents, formats or all"
+        },
+        "actions": {
+          "type": "array",
+          "description": "clean_data: trim, collapse_spaces, text_to_numbers, text_to_dates, remove_blank_rows, dedupe, proper_case, upper_case, lower_case, fill_blanks",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keys": {
+          "type": "array",
+          "description": "clean_data dedupe: headers that define a duplicate",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fillValue": {
+          "type": "string",
+          "description": "clean_data fill_blanks value"
+        },
+        "dayFirst": {
+          "type": "boolean",
+          "description": "Read 03/04/2026 as 3 April (default true)"
+        },
+        "find": {
+          "type": "string",
+          "description": "find_replace: text to find"
+        },
+        "replace": {
+          "type": "string",
+          "description": "find_replace: replacement"
+        },
+        "matchCase": {
+          "type": "boolean",
+          "description": "Case sensitive"
+        },
+        "wholeCell": {
+          "type": "boolean",
+          "description": "Match the whole cell"
+        },
+        "regex": {
+          "type": "boolean",
+          "description": "Treat find as a regular expression"
+        },
+        "header": {
+          "type": "string",
+          "description": "add_formula_column: new column title"
+        },
+        "formula": {
+          "type": "string",
+          "description": "add_formula_column: formula such as =[@Qty]*[@Price]"
+        },
+        "after": {
+          "type": "string",
+          "description": "add_formula_column: insert after this column header"
+        },
+        "format": {
+          "type": "string",
+          "description": "Number format: currency, currency0, integer, number, percent, date ..."
+        },
+        "numberFormat": {
+          "type": "string",
+          "description": "format_range: number format"
+        },
+        "widths": {
+          "type": "object",
+          "description": "set_column_width: column letter to width, e.g. {\"A\":20}",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "heights": {
+          "type": "object",
+          "description": "set_row_height: row number to height",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "totals": {
+          "type": "object",
+          "description": "add_totals_row: header to sum/avg/count/min/max, e.g. {\"Revenue\":\"sum\"}",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cell": {
+          "type": "string",
+          "description": "A single cell like A2 (freeze_panes, add_comment, add_hyperlink)"
+        },
+        "by": {
+          "type": "array",
+          "description": "sort_range: sort keys",
+          "items": {
+            "$ref": "#/definitions/SortKey"
+          }
+        },
+        "allowFormulas": {
+          "type": "boolean",
+          "description": "sort_range: allow sorting a range that contains formulas"
+        },
+        "options": {
+          "$ref": "#/definitions/EnhanceOptions"
+        },
+        "rule": {
+          "$ref": "#/definitions/Rule"
+        },
+        "rules": {
+          "type": "array",
+          "description": "validate_data: rules to check",
+          "items": {
+            "$ref": "#/definitions/ValidationRule"
+          }
+        },
+        "highlight": {
+          "type": "boolean",
+          "description": "validate_data: highlight violations (default true)"
+        },
+        "font": {
+          "type": "object",
+          "properties": {
+            "bold": {
+              "type": "boolean",
+              "description": "Bold"
+            },
+            "italic": {
+              "type": "boolean",
+              "description": "Italic"
+            },
+            "size": {
+              "type": "number",
+              "description": "Size"
+            },
+            "color": {
+              "type": "string",
+              "description": "Colour name or hex"
+            },
+            "name": {
+              "type": "string",
+              "description": "Font name"
+            }
+          }
+        },
+        "fill": {
+          "type": "string",
+          "description": "Background colour: primary, dark, light, band or hex"
+        },
+        "alignment": {
+          "type": "object",
+          "properties": {
+            "horizontal": {
+              "type": "string",
+              "description": "left, center, right"
+            },
+            "vertical": {
+              "type": "string",
+              "description": "top, center, bottom"
+            },
+            "wrap": {
+              "type": "boolean",
+              "description": "Wrap text"
+            },
+            "indent": {
+              "type": "integer",
+              "description": "Indent"
+            }
+          }
+        },
+        "border": {
+          "type": "object",
+          "properties": {
+            "style": {
+              "type": "string",
+              "description": "thin, medium, thick"
+            },
+            "color": {
+              "type": "string",
+              "description": "Colour"
+            },
+            "sides": {
+              "type": "string",
+              "description": "all or outer"
+            }
+          }
+        },
+        "categories": {
+          "type": "string",
+          "description": "add_chart: header of the label column"
+        },
+        "series": {
+          "type": "array",
+          "description": "add_chart: headers of numeric columns",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chartType": {
+          "type": "string",
+          "description": "add_chart: column, bar, line, area, pie, doughnut, scatter, stackedColumn, combo"
+        },
+        "title": {
+          "type": "string",
+          "description": "Chart / sheet / document title"
+        },
+        "place": {
+          "type": "string",
+          "description": "add_chart position: right, below or a cell like H2"
+        },
+        "targetSheet": {
+          "type": "string",
+          "description": "Sheet to put a chart or link target on"
+        },
+        "targetCell": {
+          "type": "string",
+          "description": "Link target cell"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of a new sheet / named range / dashboard sheet"
+        },
+        "newName": {
+          "type": "string",
+          "description": "rename_sheet / copy_sheet: new name"
+        },
+        "position": {
+          "type": "integer",
+          "description": "Sheet position, 0 = first"
+        },
+        "ref": {
+          "type": "string",
+          "description": "named_range: reference like 'Sheet1'!$A$1:$A$10"
+        },
+        "text": {
+          "type": "string",
+          "description": "Comment or hyperlink text"
+        },
+        "author": {
+          "type": "string",
+          "description": "Comment author / document author"
+        },
+        "url": {
+          "type": "string",
+          "description": "Hyperlink address"
+        },
+        "password": {
+          "type": "string",
+          "description": "protect_sheet password (optional)"
+        },
+        "orientation": {
+          "type": "string",
+          "description": "page_setup: landscape or portrait"
+        },
+        "printTitleRows": {
+          "type": "string",
+          "description": "page_setup: rows to repeat, e.g. 1:1"
+        },
+        "footer": {
+          "type": "string",
+          "description": "page_setup footer text"
+        },
+        "tabColor": {
+          "type": "string",
+          "description": "Tab colour"
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Hide the sheet"
+        },
+        "gridlines": {
+          "type": "boolean",
+          "description": "Show gridlines"
+        },
+        "blocks": {
+          "type": "array",
+          "description": "add_blocks / add_sheet: formatted content to add",
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        },
+        "headers": {
+          "type": "array",
+          "description": "add_sheet shorthand: column names",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "description": "add_sheet shorthand: data rows",
+          "items": {
+            "type": "array",
+            "description": "One row of cell values, same order as headers",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "op"
+      ]
     }
   }
 }
