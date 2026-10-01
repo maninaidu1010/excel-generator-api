@@ -1128,8 +1128,8 @@ def sheet_blocks(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
         blocks.append({"type": "table", **{k: spec[k] for k in (
             "headers", "rows", "columns", "totalRow", "excelTable", "banding", "filter", "freezeHeader", "name",
             "conditionalFormats") if k in spec}, "name": spec.get("tableName", spec.get("name", "Data"))})
-    for s in spec.get("summaries", []) or []:
-        blocks.append({"type": "summary", **s})
+    for sm in spec.get("summaries", []) or []:
+        blocks.append({**sm, "type": "summary"})
     tbl = next((b["name"] for b in blocks if b["type"] == "table"), None)
     for c in spec.get("charts", []) or []:
         c = dict(c)
@@ -1138,14 +1138,45 @@ def sheet_blocks(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
             d["table"] = tbl  # shorthand charts default to this sheet's table
         if d:
             c["data"] = d
-        blocks.append({"type": "chart", **c})
+        if c.get("type") and str(c["type"]).lower() != "chart" and not c.get("chartType"):
+            c["chartType"] = c["type"]  # {"type": "doughnut"} means chartType = doughnut
+        c["type"] = "chart"
+        blocks.append(c)
     if spec.get("notes"):
         blocks.append({"type": "text", "style": "note", "lines": spec["notes"] if isinstance(spec["notes"], list)
                        else [spec["notes"]]})
     return blocks
 
 
+CHART_TYPE_NAMES = {"column", "bar", "stackedcolumn", "stackedbar", "percentstacked", "line", "area", "pie",
+                    "doughnut", "donut", "scatter", "combo", "barchart", "columnchart", "linechart", "piechart"}
+BLOCK_ALIASES = {"kpi": "kpis", "kpicards": "kpis", "cards": "kpis", "metrics": "kpis", "heading": "title",
+                 "header": "title", "banner": "title", "paragraph": "text", "note": "text", "notes": "text",
+                 "grid": "table", "data": "table", "datatable": "table", "pivot": "summary",
+                 "pivottable": "summary", "chartblock": "chart", "graph": "chart", "gap": "spacer"}
+
+
+def normalize_block(b: Any) -> Dict[str, Any]:
+    """Be forgiving about how the agent names a block (e.g. {"type":"doughnut"} is a doughnut chart)."""
+    if not isinstance(b, dict):
+        raise ExcelError("Each block must be an object with a 'type'.", status=422, code="UNKNOWN_BLOCK")
+    b = dict(b)
+    t = re.sub(r"[^a-z]", "", str(b.get("type", "")).lower())
+    if t in CHART_TYPE_NAMES:
+        b.setdefault("chartType", t.replace("chart", ""))
+        t = "chart"
+    t = BLOCK_ALIASES.get(t, t)
+    if not t:  # no type given: infer from content
+        t = ("chart" if b.get("chartType") else "table" if (b.get("headers") or b.get("rows")) else
+             "kpis" if (b.get("items") or b.get("kpis")) else "summary" if b.get("groupBy") else "text")
+    b["type"] = t
+    if t == "chart" and not b.get("chartType") and b.get("type") != "chart":
+        b["chartType"] = "column"
+    return b
+
+
 def render_blocks(ctx: Ctx, ws: Any, blocks: List[Dict[str, Any]], origin: str = "B2") -> int:
+    blocks = [normalize_block(b) for b in blocks]
     r, c0 = parse_cell(origin)
     span = 6
     for b in blocks:
@@ -1163,8 +1194,9 @@ def render_blocks(ctx: Ctx, ws: Any, blocks: List[Dict[str, Any]], origin: str =
             continue
         fn = BLOCKS.get(t)
         if not fn:
-            raise ExcelError(f"Unknown block type '{b.get('type')}'. Use title, text, kpis, table, summary, chart "
-                             "or spacer.", status=422, code="UNKNOWN_BLOCK")
+            raise ExcelError(f"Unknown block type '{b.get('type')}'. Block types are: title, text, kpis, table, summary, "
+                             "chart, spacer. For a chart use {\"type\":\"chart\",\"chartType\":\"doughnut\",...}.",
+                             status=422, code="UNKNOWN_BLOCK")
         r = fn(ctx, ws, b, c0, r, span)
     return r
 
