@@ -602,37 +602,101 @@ def block_kpis(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int)
     return r + rows + 1
 
 
-def normalize_table(b: Dict[str, Any]) -> Tuple[List[str], List[List[Any]]]:
-    rows = b.get("rows") if b.get("rows") is not None else b.get("data") or []
-    headers = b.get("headers")
-    cols = b.get("columns")
-    if rows and isinstance(rows[0], dict):
-        headers = headers or list(OrderedDict.fromkeys(k for row in rows for k in row))
-        rows = [[row.get(h) for h in headers] for row in rows]
-    if not headers and isinstance(cols, list):
-        headers = [c.get("header") if isinstance(c, dict) else c for c in cols]
+import json as _json  # noqa: E402
+
+HEADER_KEYS = ("headers", "header", "columnNames", "column_names", "cols", "fields", "columns")
+ROW_KEYS = ("rows", "data", "values", "records", "items", "body")
+NAME_KEYS = ("header", "name", "title", "label", "field", "key", "text")
+TYPE_TO_FORMAT = {"date": "date", "datetime": "datetime", "currency": "currency", "money": "currency",
+                  "percent": "percent", "percentage": "percent", "number": "number", "decimal": "number",
+                  "integer": "integer", "int": "integer", "text": None, "string": None}
+
+
+def _maybe_json(v: Any) -> Any:
+    """Copilot Studio sometimes sends arrays/objects as JSON text."""
+    if isinstance(v, str) and v.strip()[:1] in ("[", "{"):
+        try:
+            return _json.loads(v)
+        except ValueError:
+            return v
+    return v
+
+
+def _col_name(c: Any) -> Optional[str]:
+    if isinstance(c, dict):
+        for k in NAME_KEYS:
+            if c.get(k) not in (None, ""):
+                return str(c[k])
+        return None
+    return str(c) if c not in (None, "") else None
+
+
+def normalize_table(b: Dict[str, Any]) -> Tuple[List[str], List[List[Any]], List[Dict[str, Any]]]:
+    """Accept the many shapes an agent may send for a table; return (headers, rows, per-column specs)."""
+    b = dict(b)
+    for k in ROW_KEYS:  # nested form: {"data": {"headers": [...], "rows": [...]}}
+        inner = _maybe_json(b.get(k))
+        if isinstance(inner, dict):
+            for kk in HEADER_KEYS + ROW_KEYS:
+                if kk in inner and not b.get(kk):
+                    b[kk] = inner[kk]
+            b.pop(k, None) if k not in inner else None
+    raw_cols = _maybe_json(b.get("columns"))
+    raw_cols = raw_cols if isinstance(raw_cols, list) else []
+    rows: Any = next((v for v in (_maybe_json(b.get(k)) for k in ROW_KEYS) if isinstance(v, list)), [])
+    raw_headers: Any = None
+    for k in HEADER_KEYS:
+        v = _maybe_json(b.get(k))
+        if isinstance(v, str) and v.strip():
+            v = [h.strip() for h in v.split(",")]
+        if isinstance(v, list) and v:
+            raw_headers = v
+            break
+    headers: Optional[List[Optional[str]]] = [_col_name(c) for c in raw_headers] if raw_headers else None
+    rows = [_maybe_json(r) for r in rows]
+    if rows and all(isinstance(r, dict) for r in rows):
+        if not headers:
+            headers = list(OrderedDict.fromkeys(k for row in rows for k in row))
+        lowered = [{str(k).lower(): v for k, v in row.items()} for row in rows]
+        rows = [[row.get(h) if h in row else lw.get(str(h).lower()) for h in headers] for row, lw in zip(rows, lowered)]
+    elif rows and not all(isinstance(r, (list, tuple)) for r in rows):
+        rows = [[r] for r in rows]  # a flat list = one column
+    if not headers and rows:  # no header given: first row is the header when it is all text
+        first = rows[0]
+        if all(isinstance(v, str) and v.strip() for v in first) and len(rows) >= 1:
+            headers, rows = list(first), rows[1:]
+    if headers and rows and isinstance(rows[0], (list, tuple)) and [str(v).strip().lower() for v in rows[0]] == \
+            [str(h).strip().lower() for h in headers]:
+        rows = rows[1:]  # the agent repeated the header as the first data row
     if not headers:
-        raise ExcelError("A table needs 'headers' (or 'columns').", status=422, code="INVALID_TABLE")
+        raise ExcelError("A table needs 'headers' (a list of column names) and 'rows' (a list of row lists). "
+                         f"This table block had these fields: {', '.join(sorted(map(str, b.keys()))) or 'none'}. Example: "
+                         "{\"type\":\"table\",\"name\":\"Sales\",\"headers\":[\"Region\",\"Revenue\"],"
+                         "\"rows\":[[\"North\",1200],[\"South\",900]]}", status=422, code="INVALID_TABLE")
     headers = [clean_str(str(h)) if h not in (None, "") else f"Column {i + 1}" for i, h in enumerate(headers)]
     if len(rows) > MAX_ROWS_IN_SPEC:
         raise ExcelError(f"Too many rows ({len(rows)}); the limit is {MAX_ROWS_IN_SPEC}.", code="TOO_MANY_ROWS")
     n = len(headers)
-    return headers, [list(row)[:n] + [None] * (n - len(row)) for row in rows]
+    rows = [list(r)[:n] + [None] * (n - len(r)) for r in rows]
+    specs: List[Dict[str, Any]] = []
+    for i, h in enumerate(headers):
+        spec: Dict[str, Any] = {}
+        cand = raw_cols[i] if i < len(raw_cols) and isinstance(raw_cols[i], dict) and _col_name(raw_cols[i]) in (h, None) else None
+        if cand is None:
+            cand = next((c for c in raw_cols if isinstance(c, dict) and (_col_name(c) or "").lower() == h.lower()), None)
+        if cand:
+            spec = dict(cand)
+            kind = str(spec.get("type") or spec.get("dataType") or "").lower()
+            if not spec.get("format") and kind in TYPE_TO_FORMAT and TYPE_TO_FORMAT[kind]:
+                spec["format"] = TYPE_TO_FORMAT[kind]
+        specs.append(spec)
+    return headers, rows, specs
 
 
 def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int) -> int:
     th = ctx.theme
-    headers, rows = normalize_table(b)
+    headers, rows, specs = normalize_table(b)
     n = len(headers)
-    specs: List[Dict[str, Any]] = []
-    raw_cols = b.get("columns") or []
-    for i, h in enumerate(headers):
-        spec: Dict[str, Any] = {}
-        if i < len(raw_cols) and isinstance(raw_cols[i], dict) and str(raw_cols[i].get("header", h)) == h:
-            spec = raw_cols[i]
-        else:
-            spec = next((c for c in raw_cols if isinstance(c, dict) and str(c.get("header")) == h), {})
-        specs.append(spec)
 
     ctx.table_seq += 1
     name = str(b.get("name") or f"Table{ctx.table_seq}")
@@ -1117,17 +1181,20 @@ BLOCKS: Dict[str, Callable[..., int]] = {
 
 def sheet_blocks(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Accept explicit `blocks` or shorthand keys (title/kpis/headers+rows/charts/notes)."""
-    if spec.get("blocks"):
-        return list(spec["blocks"])
+    blk = _maybe_json(spec.get("blocks"))
+    if isinstance(blk, list) and blk:
+        return [_maybe_json(x) for x in blk]
     blocks: List[Dict[str, Any]] = []
     if spec.get("title"):
         blocks.append({"type": "title", "text": spec["title"], "subtitle": spec.get("subtitle")})
     if spec.get("kpis"):
         blocks.append({"type": "kpis", "items": spec["kpis"]})
-    if spec.get("headers") or spec.get("rows") or spec.get("columns"):
+    if any(spec.get(k) for k in ("headers", "rows", "columns", "data", "values", "records")):
         blocks.append({"type": "table", **{k: spec[k] for k in (
-            "headers", "rows", "columns", "totalRow", "excelTable", "banding", "filter", "freezeHeader", "name",
-            "conditionalFormats") if k in spec}, "name": spec.get("tableName", spec.get("name", "Data"))})
+            "headers", "header", "rows", "data", "values", "records", "columns", "totalRow", "excelTable", "banding",
+            "filter", "freezeHeader", "conditionalFormats") if k in spec}, "name": spec.get("tableName", spec.get("name", "Data"))})
+    for tb in spec.get("tables", []) or []:
+        blocks.append({**tb, "type": "table"})
     for sm in spec.get("summaries", []) or []:
         blocks.append({**sm, "type": "summary"})
     tbl = next((b["name"] for b in blocks if b["type"] == "table"), None)
@@ -1181,7 +1248,10 @@ def render_blocks(ctx: Ctx, ws: Any, blocks: List[Dict[str, Any]], origin: str =
     span = 6
     for b in blocks:
         if b.get("type") == "table":
-            span = max(span, len(b.get("headers") or b.get("columns") or (b.get("rows") or [[]])[0] or []))
+            try:
+                span = max(span, len(normalize_table(b)[0]))
+            except ExcelError:
+                pass  # reported when the block is rendered
         elif b.get("type") == "summary":
             span = max(span, 1 + len(b.get("values") or [1]) + (1 if b.get("percentOfTotal") else 0))
         elif b.get("type") == "kpis":
@@ -1229,7 +1299,10 @@ def build_sheet(ctx: Ctx, spec: Dict[str, Any], index: int) -> Any:
 
 
 def build_workbook(spec: Dict[str, Any]) -> Ctx:
-    sheets = spec.get("sheets")
+    sheets = _maybe_json(spec.get("sheets"))
+    if isinstance(sheets, dict):
+        sheets = [{"name": k, **(v if isinstance(v, dict) else {})} for k, v in sheets.items()]
+    sheets = [_maybe_json(x) for x in sheets] if isinstance(sheets, list) else sheets
     if not isinstance(sheets, list) or not sheets:
         raise ExcelError("'sheets' must be a non-empty list. Each sheet needs a name and either 'blocks' or "
                          "shorthand fields (title, headers, rows, kpis, charts).", status=422, code="INVALID_SHEETS")
@@ -2512,9 +2585,11 @@ def op_dashboard(ctx, p):
 
 
 def run_operation(ctx: Ctx, index: int, spec: Any) -> None:
-    if not isinstance(spec, dict) or not (spec.get("op") or spec.get("operation") or spec.get("type")):
-        raise ExcelError(f"Operation {index} must be an object with an 'op' name.", status=422, code="INVALID_OPERATION")
-    name = str(spec.get("op") or spec.get("operation") or spec.get("type"))
+    spec = _maybe_json(spec)
+    if not isinstance(spec, dict) or not (spec.get("op") or spec.get("operation") or spec.get("action") or spec.get("type")):
+        raise ExcelError(f"Operation {index} must be an object with an 'op' name, e.g. "
+                         "{\"op\":\"enhance_sheet\",\"sheet\":\"Sheet1\"}.", status=422, code="INVALID_OPERATION")
+    name = str(spec.get("op") or spec.get("operation") or spec.get("action") or spec.get("type"))
     fn = OPS.get(re.sub(r"[^a-z]", "", name.lower()))
     if not fn:
         raise ExcelError(f"Operation {index}: unknown op '{name}'. Available: {', '.join(sorted(OP_DOCS))}.",
@@ -2811,6 +2886,13 @@ def create_blueprint(output_dir: Path, base_url_fn: Callable[[], str], logger: A
 
     @bp.errorhandler(ExcelError)
     def _err(e: ExcelError):
+        if logger:
+            try:
+                body = request.get_data(as_text=True)
+                body = re.sub(r'"fileBase64"\s*:\s*"[^"]{40,}"', '"fileBase64":"<omitted>"', body)
+                logger.warning("Excel %s %s -> %s %s | request: %s", request.method, request.path, e.status, e.code, body[:1500])
+            except Exception:
+                pass
         body = {"status": "error", "errorCode": e.code, "message": e.message}
         if e.details:
             body["details"] = e.details
@@ -2824,13 +2906,15 @@ def create_blueprint(output_dir: Path, base_url_fn: Callable[[], str], logger: A
             data = data["body"]
         return data
 
-    def listish(data: Dict[str, Any], key: str) -> List[Any]:
+    def listish(data: Dict[str, Any], key: str, allow_dict: bool = False) -> Any:
         v = data.get(key)
         if isinstance(v, str):  # Copilot Studio sometimes sends arrays as JSON text
             try:
                 v = _json.loads(v)
             except ValueError:
                 raise ExcelError(f"'{key}' must be a JSON array.", code="INVALID_JSON")
+        if isinstance(v, dict):
+            return v if allow_dict else [v]  # a single operation object is treated as a one-item list
         return v if isinstance(v, list) else []
 
     def cleanup() -> None:
@@ -2879,7 +2963,7 @@ def create_blueprint(output_dir: Path, base_url_fn: Callable[[], str], logger: A
     @bp.post("/createexcel")
     def createexcel():
         data = payload_json()
-        data["sheets"] = listish(data, "sheets")
+        data["sheets"] = listish(data, "sheets", allow_dict=True)
         cleanup()
         ctx = build_workbook(data)
         return finish(ctx, data.get("fileName") or data.get("title") or "workbook", ".xlsx", data)
