@@ -871,18 +871,25 @@ def finalize_tokens(ctx: "Ctx") -> None:
     ctx.deferred.clear()
     pending, ctx.deferred_charts = ctx.deferred_charts, []
     for ws, b, c0, r in pending:
-        reg = lookup_region(ctx, (b.get("data") or {}).get("table") or b.get("table") or b.get("source"))
+        ref = (b.get("data") or {}).get("table") or b.get("table") or b.get("source")
+        reg = lookup_region(ctx, ref, required=False)
+        if reg is None:
+            ctx.warn(f"Chart skipped: table '{ref}' was not found after all sheets were built. "
+                     f"Known tables: {', '.join(ctx.tables) or 'none'}.")
+            continue
         chart, _ = build_chart(ctx, b, reg)
         place = str(b.get("place", "below"))
         ws.add_chart(chart, place.upper() if re.fullmatch(r"[A-Za-z]{1,3}\d+", place) else f"{get_column_letter(c0)}{r}")
 
 
-def lookup_region(ctx: Ctx, ref: Any) -> Region:
+def lookup_region(ctx: Ctx, ref: Any, required: bool = True) -> Optional[Region]:
     key = str(ref or "").lower()
     if key in ctx.tables:
         return ctx.tables[key]
     if not ref and len(ctx.tables) == 1:
         return next(iter(ctx.tables.values()))
+    if not required:
+        return None
     raise ExcelError(f"Table '{ref}' was not found. Known tables: {', '.join(ctx.tables) or 'none'}.",
                      status=422, code="TABLE_NOT_FOUND")
 
@@ -899,7 +906,11 @@ AGG_FORMULAS = {"sum": "SUMIFS({v},{g},{k})", "count": "COUNTIFS({g},{k})", "avg
 def block_summary(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int) -> int:
     """Pivot-style summary built from SUMIFS/COUNTIFS formulas (live, but groups are fixed at build time)."""
     th = ctx.theme
-    src = lookup_region(ctx, b.get("source"))
+    src = lookup_region(ctx, b.get("source"), required=False)
+    if src is None:
+        ctx.warn(f"Summary block skipped: source table '{b.get('source')}' was not found. "
+                 f"Known tables: {', '.join(ctx.tables) or 'none'}.")
+        return r
     src_ws = ctx.sheet(src.sheet)
     group = b.get("groupBy")
     if not group:
@@ -1169,13 +1180,20 @@ def build_chart(ctx: Ctx, spec: Dict[str, Any], reg: Region) -> Tuple[Any, int]:
 
 def block_chart(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int) -> int:
     ref = (b.get("data") or {}).get("table") or b.get("table") or b.get("source")
-    if str(ref or "").lower() not in ctx.tables and not (not ref and len(ctx.tables) == 1):
-        # the source table is defined on a sheet built later (e.g. a Dashboard placed first): reserve the space,
-        # draw the chart once every sheet exists
+    known = set(ctx.tables.keys())
+    ref_key = str(ref or "").lower()
+    deferred_candidate = ref_key not in known and not (not ref and len(ctx.tables) == 1)
+    if deferred_candidate:
+        # Could be a later sheet's table — defer and try again after all sheets are built
         rows = int(math.ceil(float(b.get("height", 8.5)) / 0.53)) + 2
         ctx.deferred_charts.append((ws, b, c0, r))
         return r + rows
-    reg = lookup_region(ctx, ref)
+    reg = lookup_region(ctx, ref, required=False)
+    if reg is None:
+        ctx.warn(f"Chart skipped: table '{ref}' was not found (it may have been skipped because it had no data). "
+                 f"Known tables: {', '.join(ctx.tables) or 'none'}.")
+        ctx.note(f"Skipped chart (missing table '{ref}')")
+        return r
     chart, rows = build_chart(ctx, b, reg)
     place = str(b.get("place", "below"))
     if re.fullmatch(r"[A-Za-z]{1,3}\d+", place):
@@ -2281,7 +2299,13 @@ def op_dv(ctx, p):
 @op("add_chart", doc="{sheet (source), range?|table?, categories, series:[..], chartType, title, place:'below'|'right'|'H2', targetSheet?, width, height, dataLabels, legend, xTitle, yTitle}")
 def op_add_chart(ctx, p):
     src = ctx.sheet(p.get("sheet"))
-    reg = op_region(ctx, p, src)
+    if p.get("table"):
+        reg = lookup_region(ctx, p["table"], required=False)
+        if reg is None:
+            raise ExcelError(f"add_chart: table '{p['table']}' not found. Known tables: {', '.join(ctx.tables) or 'none'}.",
+                             status=422, code="TABLE_NOT_FOUND")
+    else:
+        reg = op_region(ctx, p, src)
     target = ctx.sheet(p["targetSheet"]) if p.get("targetSheet") else src
     chart, rows = build_chart(ctx, p, reg)
     place = str(p.get("place", "right"))
