@@ -1,0 +1,655 @@
+{
+  "_readme": "POST bodies for /createexcel, /editexcel, /analyzeexcel. Replace <BASE64> with the base64 text of your file.",
+  "createexcel_simple_tracker": {
+    "fileName": "Expense-Tracker",
+    "currency": "INR",
+    "sheets": [
+      {
+        "name": "Expenses",
+        "title": "Monthly Expenses",
+        "subtitle": "October 2026",
+        "headers": [
+          "Date",
+          "Category",
+          "Description",
+          "Amount",
+          "Paid by"
+        ],
+        "rows": [
+          [
+            "2026-10-02",
+            "Travel",
+            "Cab to client site",
+            1850,
+            "Anita"
+          ],
+          [
+            "2026-10-05",
+            "Software",
+            "Design licence",
+            12000,
+            "Ravi"
+          ],
+          [
+            "2026-10-09",
+            "Meals",
+            "Team lunch",
+            4600,
+            "Sita"
+          ]
+        ],
+        "columns": [
+          {
+            "header": "Amount",
+            "total": "sum",
+            "format": "currency0",
+            "cf": [
+              {
+                "type": "dataBar"
+              }
+            ]
+          },
+          {
+            "header": "Category",
+            "validation": {
+              "type": "list",
+              "values": [
+                "Travel",
+                "Software",
+                "Meals",
+                "Office",
+                "Other"
+              ]
+            }
+          }
+        ],
+        "totalRow": true,
+        "summaries": [
+          {
+            "source": "Expenses",
+            "groupBy": "Category",
+            "values": [
+              {
+                "column": "Amount",
+                "agg": "sum"
+              }
+            ],
+            "percentOfTotal": true,
+            "title": "Spend by category",
+            "name": "ByCategory"
+          }
+        ],
+        "charts": [
+          {
+            "data": {
+              "table": "ByCategory",
+              "categories": "Category",
+              "series": [
+                "Sum of Amount"
+              ]
+            },
+            "chartType": "doughnut",
+            "title": "Spend by category",
+            "place": "right"
+          }
+        ]
+      }
+    ]
+  },
+  "createexcel_business_review_dashboard": {
+    "fileName": "Q2-Business-Review",
+    "theme": "vkollab",
+    "currency": "INR",
+    "sheets": [
+      {
+        "name": "Dashboard",
+        "title": "Business Review H1",
+        "subtitle": "Revenue, cost and margin",
+        "kpis": [
+          {
+            "label": "Revenue",
+            "value": "=SUM(Finance[Revenue])",
+            "format": "currency0",
+            "note": "Jan - Jun"
+          },
+          {
+            "label": "Cost",
+            "value": "=SUM(Finance[Cost])",
+            "format": "currency0"
+          },
+          {
+            "label": "Profit",
+            "value": "=SUM(Finance[Profit])",
+            "format": "currency0",
+            "color": "16A34A"
+          },
+          {
+            "label": "Avg margin",
+            "value": "=AVERAGE(Finance[Margin])",
+            "format": "percent"
+          }
+        ],
+        "blocks": [
+          {
+            "type": "title",
+            "text": "Business Review H1",
+            "subtitle": "Revenue, cost and margin"
+          },
+          {
+            "type": "kpis",
+            "items": [
+              {
+                "label": "Revenue",
+                "value": "=SUM(Finance[Revenue])",
+                "format": "currency0",
+                "note": "Jan - Jun"
+              },
+              {
+                "label": "Cost",
+                "value": "=SUM(Finance[Cost])",
+                "format": "currency0"
+              },
+              {
+                "label": "Profit",
+                "value": "=SUM(Finance[Profit])",
+                "format": "currency0",
+                "color": "16A34A"
+              },
+              {
+                "label": "Avg margin",
+                "value": "=AVERAGE(Finance[Margin])",
+                "format": "percent"
+              }
+            ]
+          },
+          {
+            "type": "chart",
+            "chartType": "combo",
+            "title": "Revenue vs cost with margin",
+            "data": {
+              "table": "Finance",
+              "categories": "Month",
+              "series": [
+                "Revenue",
+                "Cost",
+                "Margin"
+              ]
+            },
+            "lineSeries": [
+              "Margin"
+            ],
+            "width": 20,
+            "place": "below"
+          },
+          {
+            "type": "chart",
+            "chartType": "stackedColumn",
+            "title": "Cost and profit",
+            "data": {
+              "table": "Finance",
+              "categories": "Month",
+              "series": [
+                "Cost",
+                "Profit"
+              ]
+            },
+            "place": "below",
+            "width": 20
+          }
+        ]
+      },
+      {
+        "name": "Finance",
+        "blocks": [
+          {
+            "type": "title",
+            "text": "Monthly finance",
+            "subtitle": "Amounts in INR"
+          },
+          {
+            "type": "table",
+            "name": "Finance",
+            "headers": [
+              "Month",
+              "Revenue",
+              "Cost",
+              "Profit",
+              "Margin"
+            ],
+            "rows": [
+              [
+                "Jan",
+                120000,
+                80000,
+                null,
+                null
+              ],
+              [
+                "Feb",
+                135000,
+                86000,
+                null,
+                null
+              ],
+              [
+                "Mar",
+                128000,
+                90000,
+                null,
+                null
+              ],
+              [
+                "Apr",
+                150000,
+                97000,
+                null,
+                null
+              ],
+              [
+                "May",
+                162000,
+                101000,
+                null,
+                null
+              ],
+              [
+                "Jun",
+                171000,
+                108000,
+                null,
+                null
+              ]
+            ],
+            "columns": [
+              {
+                "header": "Profit",
+                "formula": "=[@Revenue]-[@Cost]",
+                "total": "sum"
+              },
+              {
+                "header": "Margin",
+                "formula": "=[@Profit]/[@Revenue]",
+                "cf": [
+                  {
+                    "type": "colorScale",
+                    "palette": "rag"
+                  }
+                ],
+                "total": "avg"
+              },
+              {
+                "header": "Revenue",
+                "total": "sum",
+                "cf": [
+                  {
+                    "type": "dataBar"
+                  }
+                ]
+              },
+              {
+                "header": "Cost",
+                "total": "sum"
+              }
+            ],
+            "totalRow": true
+          },
+          {
+            "type": "chart",
+            "chartType": "area",
+            "title": "Profit trend",
+            "data": {
+              "table": "Finance",
+              "categories": "Month",
+              "series": [
+                "Profit"
+              ]
+            },
+            "place": "right"
+          },
+          {
+            "type": "chart",
+            "chartType": "scatter",
+            "title": "Cost vs revenue",
+            "data": {
+              "table": "Finance",
+              "categories": "Cost",
+              "series": [
+                "Revenue"
+              ]
+            },
+            "place": "below",
+            "width": 14
+          }
+        ]
+      },
+      {
+        "name": "Tracker",
+        "blocks": [
+          {
+            "type": "title",
+            "text": "Project tracker"
+          },
+          {
+            "type": "table",
+            "name": "Tracker",
+            "excelTable": true,
+            "headers": [
+              "Task",
+              "Owner",
+              "Due",
+              "Priority",
+              "Status",
+              "Progress",
+              "Budget"
+            ],
+            "rows": [
+              [
+                "Design review",
+                "Anita",
+                "2026-10-05",
+                "High",
+                "In progress",
+                0.6,
+                45000
+              ],
+              [
+                "API build",
+                "Ravi",
+                "2026-10-12",
+                "High",
+                "Late",
+                0.35,
+                120000
+              ],
+              [
+                "Test plan",
+                "Sita",
+                "2026-10-20",
+                "Medium",
+                "Not started",
+                0,
+                30000
+              ],
+              [
+                "Go-live",
+                "Kiran",
+                "2026-11-01",
+                "High",
+                "Not started",
+                0,
+                80000
+              ],
+              [
+                "Docs",
+                "Anita",
+                "2026-10-28",
+                "Low",
+                "Done",
+                1,
+                15000
+              ]
+            ],
+            "columns": [
+              {
+                "header": "Status",
+                "validation": {
+                  "type": "list",
+                  "values": [
+                    "Not started",
+                    "In progress",
+                    "Late",
+                    "Done"
+                  ]
+                },
+                "cf": [
+                  {
+                    "type": "status",
+                    "map": {
+                      "Done": "green",
+                      "Late": "red",
+                      "In progress": "blue",
+                      "Not started": "grey"
+                    }
+                  }
+                ]
+              },
+              {
+                "header": "Priority",
+                "validation": {
+                  "type": "list",
+                  "values": [
+                    "High",
+                    "Medium",
+                    "Low"
+                  ]
+                },
+                "cf": [
+                  {
+                    "type": "cell",
+                    "operator": "equal",
+                    "value": "High",
+                    "color": "red",
+                    "bold": true
+                  }
+                ]
+              },
+              {
+                "header": "Progress",
+                "format": "percent0",
+                "cf": [
+                  {
+                    "type": "dataBar",
+                    "color": "16A34A"
+                  }
+                ]
+              },
+              {
+                "header": "Due",
+                "cf": [
+                  {
+                    "type": "formula",
+                    "formula": "AND($F3<1,D3<TODAY()+14)",
+                    "color": "amber"
+                  }
+                ]
+              },
+              {
+                "header": "Budget",
+                "format": "currency0",
+                "cf": [
+                  {
+                    "type": "iconSet",
+                    "icons": "3Arrows"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "chart",
+            "chartType": "doughnut",
+            "title": "Budget by task",
+            "data": {
+              "table": "Tracker",
+              "categories": "Task",
+              "series": [
+                "Budget"
+              ]
+            },
+            "place": "below",
+            "width": 14
+          }
+        ]
+      }
+    ]
+  },
+  "editexcel_clean_and_enhance": {
+    "source": {
+      "fileBase64": "<BASE64>",
+      "fileName": "orders.xlsx"
+    },
+    "fileName": "Orders-clean",
+    "operations": [
+      {
+        "op": "find_replace",
+        "sheet": "Orders",
+        "find": "done",
+        "replace": "Done",
+        "wholeCell": true
+      },
+      {
+        "op": "clean_data",
+        "sheet": "Orders",
+        "actions": [
+          "trim",
+          "collapse_spaces",
+          "text_to_numbers",
+          "text_to_dates",
+          "remove_blank_rows",
+          "dedupe",
+          "proper_case"
+        ],
+        "columns": [
+          "Region"
+        ],
+        "keys": [
+          "Order ID",
+          "Product",
+          "Qty"
+        ]
+      },
+      {
+        "op": "clean_data",
+        "sheet": "Orders",
+        "actions": [
+          "text_to_numbers",
+          "text_to_dates"
+        ]
+      },
+      {
+        "op": "enhance_sheet",
+        "sheet": "Orders"
+      },
+      {
+        "op": "conditional_format",
+        "sheet": "Orders",
+        "column": "Status",
+        "rule": {
+          "type": "status",
+          "map": {
+            "Done": "green",
+            "Late": "red",
+            "Pending": "amber"
+          }
+        }
+      },
+      {
+        "op": "conditional_format",
+        "sheet": "Orders",
+        "column": "Total",
+        "rule": {
+          "type": "dataBar"
+        }
+      },
+      {
+        "op": "data_validation",
+        "sheet": "Orders",
+        "column": "Status",
+        "rule": {
+          "type": "list",
+          "values": [
+            "Done",
+            "Late",
+            "Pending"
+          ],
+          "error": "Pick a status from the list"
+        }
+      },
+      {
+        "op": "data_validation",
+        "sheet": "Orders",
+        "column": "Qty",
+        "rule": {
+          "type": "whole",
+          "min": 1,
+          "max": 500
+        }
+      },
+      {
+        "op": "add_formula_column",
+        "sheet": "Orders",
+        "header": "Discounted",
+        "formula": "=[@Total]*0.9",
+        "format": "currency"
+      },
+      {
+        "op": "add_totals_row",
+        "sheet": "Orders",
+        "columns": {
+          "Qty": "sum",
+          "Total": "sum"
+        }
+      },
+      {
+        "op": "validate_data",
+        "sheet": "Orders",
+        "rules": [
+          {
+            "column": "Email",
+            "type": "email",
+            "required": true
+          },
+          {
+            "column": "Order ID",
+            "unique": true
+          },
+          {
+            "column": "Qty",
+            "type": "integer",
+            "min": 1,
+            "max": 25
+          }
+        ]
+      },
+      {
+        "op": "freeze_panes",
+        "sheet": "Orders",
+        "cell": "A2"
+      },
+      {
+        "op": "auto_dashboard",
+        "sheet": "Orders",
+        "name": "Dashboard"
+      },
+      {
+        "op": "page_setup",
+        "sheet": "Orders",
+        "orientation": "landscape",
+        "printTitleRows": "1:1",
+        "footer": "Page &P of &N"
+      }
+    ]
+  },
+  "editexcel_quick_polish": {
+    "source": {
+      "fileBase64": "<BASE64>",
+      "fileName": "report.xlsx"
+    },
+    "operations": [
+      {
+        "op": "enhance_sheet",
+        "sheet": "Sheet1"
+      },
+      {
+        "op": "auto_dashboard",
+        "sheet": "Sheet1"
+      }
+    ]
+  },
+  "analyzeexcel": {
+    "source": {
+      "fileBase64": "<BASE64>",
+      "fileName": "orders.xlsx"
+    }
+  }
+}
