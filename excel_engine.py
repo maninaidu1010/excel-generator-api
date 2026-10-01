@@ -704,16 +704,107 @@ def normalize_table(b: Dict[str, Any]) -> Tuple[List[str], List[List[Any]], List
     return headers, rows, specs
 
 
+# ── Smart sample data injected when agent sends a table with no headers/rows ──────────────────────
+_DEFAULT_TABLES: Dict[str, Any] = {
+    "sales": {"headers":["Region","Product","Units","Unit Price","Revenue","Status"],
+      "rows":[["North","Widget","120","120","14400","Done"],["South","Gadget","85","99","8415","Pending"],
+              ["East","Widget","200","120","24000","Done"],["West","Gizmo","50","245","12250","Late"],
+              ["North","Gadget","95","99","9405","Done"],["South","Widget","150","120","18000","Done"]],
+      "columns":[{"header":"Units","format":"integer","total":"sum"},{"header":"Unit Price","format":"currency0"},
+                 {"header":"Revenue","format":"currency0","total":"sum","cf":[{"type":"dataBar"}]},
+                 {"header":"Status","validation":{"type":"list","values":["Done","Pending","Late"]},
+                  "cf":[{"type":"status","map":{"Done":"green","Pending":"amber","Late":"red"}}]}],"totalRow":True},
+    "expense": {"headers":["Date","Category","Description","Amount","Paid By","Status"],
+      "rows":[["2026-10-02","Travel","Cab to office","850","Anita","Approved"],
+              ["2026-10-05","Software","Design licence","12000","Ravi","Pending"],
+              ["2026-10-09","Meals","Team lunch","3500","Sita","Approved"],
+              ["2026-10-12","Office","Stationery","1200","Anita","Approved"],
+              ["2026-10-15","Travel","Client visit","4500","Kiran","Pending"]],
+      "columns":[{"header":"Date","format":"date"},{"header":"Amount","format":"currency0","total":"sum",
+                  "cf":[{"type":"dataBar"}]},{"header":"Status","validation":{"type":"list","values":["Approved","Pending","Rejected"]},
+                  "cf":[{"type":"status","map":{"Approved":"green","Pending":"amber","Rejected":"red"}}]}],"totalRow":True},
+    "budget": {"headers":["Category","Budgeted","Actual","Variance","Status"],
+      "rows":[["Salaries","500000","485000","15000","On track"],["Marketing","80000","92000","-12000","Over budget"],
+              ["Infrastructure","120000","118000","2000","On track"],["Training","30000","18000","12000","Under budget"],
+              ["Operations","60000","63000","-3000","Over budget"]],
+      "columns":[{"header":"Budgeted","format":"currency0","total":"sum"},{"header":"Actual","format":"currency0","total":"sum"},
+                 {"header":"Variance","format":"currency0","total":"sum","cf":[{"type":"colorScale","palette":"gyr"}]},
+                 {"header":"Status","cf":[{"type":"status","map":{"On track":"green","Over budget":"red","Under budget":"amber"}}]}],"totalRow":True},
+    "tracker": {"headers":["Task","Owner","Due Date","Priority","Status","Progress"],
+      "rows":[["Requirements","Anita","2026-10-10","High","Done","100"],["Design","Ravi","2026-10-20","High","In Progress","60"],
+              ["Development","Sita","2026-11-05","High","Not Started","0"],["Testing","Kiran","2026-11-20","Medium","Not Started","0"],
+              ["Go-Live","Anita","2026-12-01","High","Not Started","0"]],
+      "columns":[{"header":"Priority","cf":[{"type":"cell","operator":"equal","value":"High","color":"red","bold":True}]},
+                 {"header":"Status","validation":{"type":"list","values":["Not Started","In Progress","Done","Blocked"]},
+                  "cf":[{"type":"status","map":{"Done":"green","In Progress":"blue","Blocked":"red","Not Started":"grey"}}]},
+                 {"header":"Progress","format":"integer","cf":[{"type":"dataBar","color":"16A34A"}]}]},
+    "inventory": {"headers":["Item Code","Item Name","Category","Stock","Reorder Level","Unit Cost","Total Value"],
+      "rows":[["ITM001","Widget A","Electronics","250","50","450","112500"],["ITM002","Gadget B","Electronics","180","40","899","161820"],
+              ["ITM003","Cable C","Accessories","500","100","199","99500"],["ITM004","Case D","Accessories","320","80","349","111680"],
+              ["ITM005","Battery E","Electronics","150","60","599","89850"]],
+      "columns":[{"header":"Stock","format":"integer"},{"header":"Reorder Level","format":"integer"},
+                 {"header":"Unit Cost","format":"currency0"},{"header":"Total Value","format":"currency0","total":"sum","cf":[{"type":"dataBar"}]}],"totalRow":True},
+    "employee": {"headers":["Employee ID","Name","Department","Role","Joining Date","Salary","Status"],
+      "rows":[["EMP001","Anita Rao","HR","Manager","2021-04-01","75000","Active"],
+              ["EMP002","Ravi Kumar","IT","Developer","2022-06-15","95000","Active"],
+              ["EMP003","Sita Devi","Finance","Analyst","2020-01-10","68000","Active"],
+              ["EMP004","Kiran Babu","IT","Lead","2019-08-20","120000","Active"],
+              ["EMP005","Meena Raj","HR","Executive","2023-03-05","55000","Probation"]],
+      "columns":[{"header":"Joining Date","format":"date"},{"header":"Salary","format":"currency0","total":"sum"},
+                 {"header":"Status","cf":[{"type":"status","map":{"Active":"green","Probation":"amber","Inactive":"grey"}}]}],"totalRow":True},
+    "report": {"headers":["Month","Revenue","Cost","Profit","Margin"],
+      "rows":[["Jan","120000","80000","40000","0.33"],["Feb","135000","86000","49000","0.36"],
+              ["Mar","128000","90000","38000","0.30"],["Apr","150000","97000","53000","0.35"],
+              ["May","162000","101000","61000","0.38"],["Jun","171000","108000","63000","0.37"]],
+      "columns":[{"header":"Revenue","format":"currency0","total":"sum"},{"header":"Cost","format":"currency0","total":"sum"},
+                 {"header":"Profit","format":"currency0","total":"sum","cf":[{"type":"colorScale","palette":"rag"}]},
+                 {"header":"Margin","format":"percent","cf":[{"type":"dataBar"}]}],"totalRow":True},
+    "kpi": {"headers":["Metric","Target","Actual","Achievement","Status"],
+      "rows":[["Revenue","500000","487000","0.974","On Track"],["Units Sold","1000","1120","1.12","Exceeded"],
+              ["Customer Satisfaction","0.90","0.88","0.978","At Risk"],["Market Share","0.25","0.23","0.92","At Risk"],
+              ["Cost Reduction","0.10","0.07","0.70","Behind"]],
+      "columns":[{"header":"Target","format":"number"},{"header":"Actual","format":"number"},
+                 {"header":"Achievement","format":"percent","cf":[{"type":"colorScale","palette":"rag"}]},
+                 {"header":"Status","cf":[{"type":"status","map":{"Exceeded":"green","On Track":"green","At Risk":"amber","Behind":"red"}}]}]},
+    "default": {"headers":["Name","Category","Value","Date","Status"],
+      "rows":[["Item 1","Category A","1000","2026-10-01","Active"],["Item 2","Category B","2500","2026-10-05","Active"],
+              ["Item 3","Category A","1800","2026-10-10","Pending"],["Item 4","Category C","3200","2026-10-15","Active"],
+              ["Item 5","Category B","900","2026-10-20","Done"]],
+      "columns":[{"header":"Value","format":"number","total":"sum","cf":[{"type":"dataBar"}]},
+                 {"header":"Status","cf":[{"type":"status","map":{"Active":"green","Pending":"amber","Done":"blue"}}]}],"totalRow":True},
+}
+_KEYWORD_MAP: List[Tuple[str, str]] = [
+    ("sales","sales"),("revenue","sales"),("product","sales"),
+    ("expense","expense"),("spend","expense"),("cost tracker","expense"),
+    ("budget","budget"),("financial","budget"),("finance","report"),
+    ("project","tracker"),("task","tracker"),("tracker","tracker"),("plan","tracker"),
+    ("inventory","inventory"),("stock","inventory"),("warehouse","inventory"),
+    ("employee","employee"),("staff","employee"),(" hr ","employee"),("people","employee"),
+    ("report","report"),("monthly","report"),("quarterly","report"),("summary","report"),
+    ("kpi","kpi"),("metric","kpi"),("performance","kpi"),("dashboard","sales"),
+]
+
+
+def _find_default(name: str, title: str = "") -> Dict[str, Any]:
+    combined = (str(name or "") + " " + str(title or "")).lower()
+    for keyword, tpl_key in _KEYWORD_MAP:
+        if keyword in combined:
+            return dict(_DEFAULT_TABLES[tpl_key])
+    return dict(_DEFAULT_TABLES["default"])
+
+
 def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int) -> int:
     th = ctx.theme
     headers, rows, specs = normalize_table(b)
-    if headers is None:  # table block arrived with no data
+    if headers is None:  # table block has no data — inject smart sample defaults
         name = str(b.get("name") or b.get("title") or "Table")
-        ctx.warn(f"Table block '{name}' had no headers or rows and was skipped. "
-                 f"The agent must send headers (list of column names) and rows (list of row lists). "
-                 f"Fields received: {', '.join(k for k in b if k not in ('type',)) or 'none'}.")
-        ctx.note(f"Skipped empty table block '{name}'")
-        return r
+        sheet_title = str(ctx.wb.worksheets[-1].title if ctx.wb.worksheets else "")
+        defaults = _find_default(name, sheet_title)
+        b = {**b, **defaults}
+        ctx.warn(f"Table '{name}' had no data; sample data was added automatically. "
+                 "Replace with your actual data.")
+        ctx.note(f"Auto-filled table '{name}' with {len(defaults['rows'])} sample rows")
+        headers, rows, specs = normalize_table(b)
     n = len(headers)
 
     ctx.table_seq += 1
@@ -1334,10 +1425,15 @@ def build_sheet(ctx: Ctx, spec: Dict[str, Any], index: int) -> Any:
         ws.column_dimensions["A"].width = 2
     blocks = sheet_blocks(spec)
     if not blocks:
-        # sheet arrived completely empty — add a placeholder so it's not a blank white sheet
-        ctx.warn(f"Sheet '{name}' had no blocks and no data. A placeholder title was added. "
-                 "Send blocks with table (headers+rows), kpis, chart, or title blocks to add content.")
-        blocks = [{"type": "title", "text": name, "subtitle": "No data was provided for this sheet."}]
+        tname = re.sub(r'[^A-Za-z0-9_]', '_', name)[:40] or "Data"
+        defaults = _find_default(name)
+        ctx.warn(f"Sheet '{name}' had no blocks; sample data was added automatically. Replace with your actual data.")
+        blocks = [
+            {"type": "title", "text": name, "subtitle": "Sample data — replace with your actual figures"},
+            {"type": "table", "name": tname, **defaults},
+            {"type": "chart", "chartType": "column", "title": name,
+             "data": {"table": tname, "categories": defaults["headers"][0], "series": [defaults["headers"][2]]}},
+        ]
     render_blocks(ctx, ws, blocks, origin)
     if spec.get("freeze"):
         ws.freeze_panes = str(spec["freeze"])
