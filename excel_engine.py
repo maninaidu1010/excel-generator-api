@@ -682,10 +682,8 @@ def normalize_table(b: Dict[str, Any]) -> Tuple[List[str], List[List[Any]], List
             [str(h).strip().lower() for h in headers]:
         rows = rows[1:]  # the agent repeated the header as the first data row
     if not headers:
-        raise ExcelError("A table needs 'headers' (a list of column names) and 'rows' (a list of row lists). "
-                         f"This table block had these fields: {', '.join(sorted(map(str, b.keys()))) or 'none'}. Example: "
-                         "{\"type\":\"table\",\"name\":\"Sales\",\"headers\":[\"Region\",\"Revenue\"],"
-                         "\"rows\":[[\"North\",1200],[\"South\",900]]}", status=422, code="INVALID_TABLE")
+        # Return a sentinel instead of crashing; block_table will emit a placeholder + warning
+        return None, [], []
     headers = [clean_str(str(h)) if h not in (None, "") else f"Column {i + 1}" for i, h in enumerate(headers)]
     if len(rows) > MAX_ROWS_IN_SPEC:
         raise ExcelError(f"Too many rows ({len(rows)}); the limit is {MAX_ROWS_IN_SPEC}.", code="TOO_MANY_ROWS")
@@ -709,6 +707,13 @@ def normalize_table(b: Dict[str, Any]) -> Tuple[List[str], List[List[Any]], List
 def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int) -> int:
     th = ctx.theme
     headers, rows, specs = normalize_table(b)
+    if headers is None:  # table block arrived with no data
+        name = str(b.get("name") or b.get("title") or "Table")
+        ctx.warn(f"Table block '{name}' had no headers or rows and was skipped. "
+                 f"The agent must send headers (list of column names) and rows (list of row lists). "
+                 f"Fields received: {', '.join(k for k in b if k not in ('type',)) or 'none'}.")
+        ctx.note(f"Skipped empty table block '{name}'")
+        return r
     n = len(headers)
 
     ctx.table_seq += 1
@@ -1264,7 +1269,9 @@ def render_blocks(ctx: Ctx, ws: Any, blocks: List[Dict[str, Any]], origin: str =
     for b in blocks:
         if b.get("type") == "table":
             try:
-                span = max(span, len(normalize_table(b)[0]))
+                h = normalize_table(b)[0]
+                if h:
+                    span = max(span, len(h))
             except ExcelError:
                 pass  # reported when the block is rendered
         elif b.get("type") == "summary":
@@ -1307,7 +1314,13 @@ def build_sheet(ctx: Ctx, spec: Dict[str, Any], index: int) -> Any:
     origin = str(spec.get("origin", "B2"))
     if parse_cell(origin)[1] == 2:
         ws.column_dimensions["A"].width = 2
-    render_blocks(ctx, ws, sheet_blocks(spec), origin)
+    blocks = sheet_blocks(spec)
+    if not blocks:
+        # sheet arrived completely empty — add a placeholder so it's not a blank white sheet
+        ctx.warn(f"Sheet '{name}' had no blocks and no data. A placeholder title was added. "
+                 "Send blocks with table (headers+rows), kpis, chart, or title blocks to add content.")
+        blocks = [{"type": "title", "text": name, "subtitle": "No data was provided for this sheet."}]
+    render_blocks(ctx, ws, blocks, origin)
     if spec.get("freeze"):
         ws.freeze_panes = str(spec["freeze"])
     ctx.note(f"Sheet '{name}' created")
@@ -2900,13 +2913,25 @@ def create_blueprint(output_dir: Path, base_url_fn: Callable[[], str], logger: A
     import json as _json
     bp = Blueprint("excel", __name__)
 
+    @bp.before_request
+    def _log_request():
+        if request.path in ("/createexcel", "/editexcel") and request.content_type and "json" in request.content_type:
+            if logger:
+                try:
+                    body = request.get_data(as_text=True)
+                    body = re.sub(r'"fileBase64"\s*:\s*"[^"]{40,}"', '"fileBase64":"<b64>"', body)
+                    logger.info("=== INCOMING %s === %s", request.path, body[:5000])
+                except Exception:
+                    pass
+
     @bp.errorhandler(ExcelError)
     def _err(e: ExcelError):
         if logger:
             try:
                 body = request.get_data(as_text=True)
                 body = re.sub(r'"fileBase64"\s*:\s*"[^"]{40,}"', '"fileBase64":"<omitted>"', body)
-                logger.warning("Excel %s %s -> %s %s | request: %s", request.method, request.path, e.status, e.code, body[:1500])
+                logger.warning("=== EXCEL 422 === path=%s code=%s msg=%s PAYLOAD=%s",
+                                   request.path, e.code, e.message, body[:5000])
             except Exception:
                 pass
         body = {"status": "error", "errorCode": e.code, "message": e.message}
