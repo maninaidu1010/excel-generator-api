@@ -1,0 +1,855 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Excel Generator Connector",
+    "description": "Create, edit, format, enhance, validate and analyze Excel workbooks.",
+    "version": "1.0"
+  },
+  "host": "excel-generator-api.onrender.com",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/createexcel": {
+      "post": {
+        "operationId": "CreateExcel",
+        "summary": "Create an Excel workbook",
+        "description": "Builds a professionally formatted workbook (tables, formulas, KPI cards, summaries, charts, conditional formatting, dropdowns, dashboards) from a sheet specification and returns a download link.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "sheets"
+              ],
+              "properties": {
+                "fileName": {
+                  "type": "string",
+                  "x-ms-summary": "File name",
+                  "description": "Name for the workbook, without extension"
+                },
+                "theme": {
+                  "type": "string",
+                  "x-ms-summary": "Theme",
+                  "description": "vkollab (default blue), slate, green or orange",
+                  "default": "vkollab"
+                },
+                "currency": {
+                  "type": "string",
+                  "x-ms-summary": "Currency",
+                  "description": "USD, INR, EUR, GBP, JPY, AUD or CAD. Used by 'currency' number formats.",
+                  "default": "USD"
+                },
+                "sheets": {
+                  "type": "array",
+                  "x-ms-summary": "Sheets",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "List of sheet objects. Each: {name, blocks:[...]} where blocks are title, kpis, table, summary, chart, text, spacer. Shorthand per sheet also works: {name, title, subtitle, kpis, headers, rows, columns, totalRow, summaries, charts, notes}. Formulas are strings starting with '='; use [@Column] for same-row cells and Table[Column] for a whole column. Call GetExcelCapabilities for the full list."
+                },
+                "returnBase64": {
+                  "type": "boolean",
+                  "x-ms-summary": "Return file content",
+                  "description": "Also return the file as base64 (files up to 4 MB)",
+                  "default": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request could not be applied; read 'message'",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/editexcel": {
+      "post": {
+        "operationId": "EditExcel",
+        "summary": "Edit, clean, format or enhance an Excel workbook",
+        "description": "Opens an existing workbook (or CSV) and applies a list of operations: formatting, cleaning, sorting, formulas, charts, validation, dashboards, sheet management. The original file is never changed; a new file is returned.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "source",
+                "operations"
+              ],
+              "properties": {
+                "source": {
+                  "type": "object",
+                  "title": "Source workbook",
+                  "description": "The existing file. Provide fileBase64 (base64 text of the .xlsx/.xlsm/.csv) OR fileUrl (a public direct-download link; private SharePoint/OneDrive links do not work).",
+                  "properties": {
+                    "fileBase64": {
+                      "type": "string",
+                      "description": "Base64 content of the workbook"
+                    },
+                    "fileUrl": {
+                      "type": "string",
+                      "description": "Public direct-download URL"
+                    },
+                    "fileName": {
+                      "type": "string",
+                      "description": "Original file name incl. extension, e.g. budget.xlsx"
+                    }
+                  }
+                },
+                "operations": {
+                  "type": "array",
+                  "x-ms-summary": "Operations",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "Ordered list of {op, sheet, ...} objects (max 80). Examples: {op:'enhance_sheet',sheet:'Orders'}, {op:'clean_data',sheet:'Orders',actions:['trim','text_to_numbers','text_to_dates','remove_blank_rows','dedupe']}, {op:'add_formula_column',sheet:'Orders',header:'Margin',formula:'=[@Profit]/[@Revenue]',format:'percent'}, {op:'conditional_format',sheet:'Orders',column:'Status',rule:{type:'status',map:{Done:'green',Late:'red'}}}, {op:'validate_data',sheet:'Orders',rules:[{column:'Email',type:'email',required:true}]}, {op:'auto_dashboard',sheet:'Orders'}. Call GetExcelCapabilities for all operations."
+                },
+                "fileName": {
+                  "type": "string",
+                  "x-ms-summary": "Output file name"
+                },
+                "theme": {
+                  "type": "string",
+                  "x-ms-summary": "Theme",
+                  "default": "vkollab"
+                },
+                "currency": {
+                  "type": "string",
+                  "x-ms-summary": "Currency",
+                  "default": "USD"
+                },
+                "continueOnError": {
+                  "type": "boolean",
+                  "x-ms-summary": "Continue on error",
+                  "description": "Skip failing operations instead of stopping",
+                  "default": false
+                },
+                "returnBase64": {
+                  "type": "boolean",
+                  "x-ms-summary": "Return file content",
+                  "default": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request could not be applied; read 'message'",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analyzeexcel": {
+      "post": {
+        "operationId": "AnalyzeExcel",
+        "summary": "Inspect and validate an Excel workbook",
+        "description": "Reads a workbook without changing it: structure, detected data range, column profile, formula errors, data-quality problems, health score, suggestions and features that editing could lose. Always call this before editing a file you have not seen.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "source"
+              ],
+              "properties": {
+                "source": {
+                  "type": "object",
+                  "title": "Source workbook",
+                  "description": "The existing file. Provide fileBase64 (base64 text of the .xlsx/.xlsm/.csv) OR fileUrl (a public direct-download link; private SharePoint/OneDrive links do not work).",
+                  "properties": {
+                    "fileBase64": {
+                      "type": "string",
+                      "description": "Base64 content of the workbook"
+                    },
+                    "fileUrl": {
+                      "type": "string",
+                      "description": "Public direct-download URL"
+                    },
+                    "fileName": {
+                      "type": "string",
+                      "description": "Original file name incl. extension, e.g. budget.xlsx"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "fileName": {
+                  "type": "string"
+                },
+                "healthScore": {
+                  "type": "integer",
+                  "description": "0-100 data and formula health"
+                },
+                "summary": {
+                  "type": "object",
+                  "description": "Counts of errors, warnings and info items"
+                },
+                "issues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "Problems found: severity, sheet, location, type, message"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "Per-sheet structure, detected data range, column profile and sample rows"
+                },
+                "suggestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features that editing this file would lose"
+                },
+                "formulasVerified": {
+                  "type": "boolean"
+                },
+                "totalFormulas": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request could not be applied; read 'message'",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "success or error"
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "Name of the generated workbook"
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "description": "Link the user can click to download the workbook. Always share this link."
+                },
+                "sheetCount": {
+                  "type": "integer"
+                },
+                "sheets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sheet names in the result"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Plain-language log of what was done"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Things the user should know. Always mention these."
+                },
+                "preservationWarnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Features of the original file that could not be kept"
+                },
+                "formulasVerified": {
+                  "type": "boolean",
+                  "description": "True only if formula results were checked on the server. If false, Excel calculates them on open."
+                },
+                "report": {
+                  "type": "object",
+                  "description": "Validation results when validate_data was used"
+                },
+                "sourceFormat": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/excel-capabilities": {
+      "get": {
+        "operationId": "GetExcelCapabilities",
+        "summary": "List Excel features and operations",
+        "description": "Returns every operation, block, chart type, conditional-format type and number format the Excel tools support.",
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "operations": {
+                  "type": "object",
+                  "description": "Operation names with their parameters"
+                },
+                "chartTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
