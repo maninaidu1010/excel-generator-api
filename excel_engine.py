@@ -219,8 +219,21 @@ def coerce(v: Any) -> Any:
     return v
 
 
-def cell_value(v: Any, row: int) -> Any:
-    v = coerce(v)
+NUMERIC_TEXT = re.compile(r"^-?\d+(\.\d+)?$")
+ID_HEADER = re.compile(r"(^|[\s_-])(id|code|sku|phone|mobile|zip|pin|pincode|postcode|account|aadhaar|ref|reference|invoice no|order no)([\s_-]|$)", re.I)
+
+
+def numish(v: Any) -> Any:
+    """'1200' -> 1200, '12.5' -> 12.5. Leading zeros ('007') and very long digit strings stay text."""
+    if isinstance(v, str):
+        t = v.strip()
+        if NUMERIC_TEXT.match(t) and not re.match(r"^-?0\d", t) and len(t) <= 15:
+            return float(t) if "." in t else int(t)
+    return v
+
+
+def cell_value(v: Any, row: int, numeric: bool = True) -> Any:
+    v = coerce(numish(v) if numeric else v)
     return v.replace("{r}", str(row)) if is_formula(v) else v
 
 
@@ -710,6 +723,8 @@ def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int
     ctx.tables[name.lower()] = Region(ws.title, header_row, c0, c0 + n - 1, first_row,
                                       first_row + len(rows) - 1, headers, fmts)  # registered early: self-references work
 
+    num_ok = [not (ID_HEADER.search(h) or str(specs[i].get("format", "")).lower() == "text") for i, h in enumerate(headers)]
+
     # formula columns: fill blanks with the column template
     for ci, spec in enumerate(specs):
         if spec.get("formula"):
@@ -720,7 +735,7 @@ def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int
     for ci, h in enumerate(headers):
         col = c0 + ci
         spec = specs[ci]
-        key = spec.get("format") or infer_format(h, [coerce(row[ci]) for row in rows[:500]])
+        key = spec.get("format") or infer_format(h, [coerce(numish(row[ci]) if num_ok[ci] else row[ci]) for row in rows[:500]])
         fmt = number_format(key, th) if key else None
         if fmt and fmt not in ("General",):
             fmts[h] = fmt
@@ -744,7 +759,7 @@ def block_table(ctx: Ctx, ws: Any, b: Dict[str, Any], c0: int, r: int, span: int
         banded = bool(b.get("banding", True)) and ri % 2 == 1
         for ci, h in enumerate(headers):
             spec = specs[ci]
-            cell = ws.cell(rr, c0 + ci, resolve_tokens(ctx, cell_value(row[ci], rr), letters, rr))
+            cell = ws.cell(rr, c0 + ci, resolve_tokens(ctx, cell_value(row[ci], rr, num_ok[ci]), letters, rr))
             cell.font = Font(name=th.font, size=11, color=th.text)
             if h in fmts:
                 cell.number_format = fmts[h]
@@ -1260,7 +1275,8 @@ def render_blocks(ctx: Ctx, ws: Any, blocks: List[Dict[str, Any]], origin: str =
     for b in blocks:
         t = str(b.get("type", "")).lower()
         if t == "spacer":
-            r += int(b.get("rows", 1))
+            n_sp = b.get("count", b.get("rows", 1))
+            r += int(n_sp) if isinstance(n_sp, (int, float, str)) and str(n_sp).isdigit() else 1
             continue
         fn = BLOCKS.get(t)
         if not fn:
@@ -1879,7 +1895,7 @@ def op_format_range(ctx, p):
 @op("set_column_width", "column_width", doc="{sheet, columns:{'A':20,'C':12}}")
 def op_set_column_width(ctx, p):
     ws = ctx.sheet(p.get("sheet"))
-    for col, w in (p.get("columns") or {}).items():
+    for col, w in (p.get("widths") or p.get("columns") or {}).items():
         ws.column_dimensions[str(col).upper()].width = float(w)
     ctx.note(f"Set widths on '{ws.title}'")
 
@@ -1887,7 +1903,7 @@ def op_set_column_width(ctx, p):
 @op("set_row_height", "row_height", doc="{sheet, rows:{'1':30}}")
 def op_set_row_height(ctx, p):
     ws = ctx.sheet(p.get("sheet"))
-    for row, h in (p.get("rows") or {}).items():
+    for row, h in (p.get("heights") or p.get("rows") or {}).items():
         ws.row_dimensions[int(row)].height = float(h)
     ctx.note(f"Set row heights on '{ws.title}'")
 
@@ -2134,7 +2150,7 @@ def op_add_totals(ctx, p):
         cell.fill = fill_of(th.light)
         cell.border = Border(top=side_of(th.dark, "medium"))
     ws.cell(row, reg.first_col, "Total")
-    for header, agg in (p.get("columns") or {}).items():
+    for header, agg in (p.get("totals") or p.get("columns") or {}).items():
         col = reg.col(header)
         L = get_column_letter(col)
         a = str(agg).lower()
